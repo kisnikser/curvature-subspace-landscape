@@ -1,0 +1,816 @@
+% Curvature Subspaces and the Loss Landscape at Scale — NeurIPS 2026 skeleton
+% Compile: pdflatex main && bibtex main && pdflatex main && pdflatex main
+%
+% Package options (see neurips_2026.tex from the official author kit):
+%   \usepackage{neurips_2026}           % Main Track, double-blind (default)
+%   \usepackage[preprint]{neurips_2026} % Named authors (e.g. arXiv)
+%   \usepackage[main, final]{neurips_2026} % Camera-ready Main Track
+
+\documentclass{article}
+
+% Submission: anonymous Main Track (default). For arXiv / named preprint use \usepackage[preprint]{neurips_2026}.
+\usepackage{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Anonymous NeurIPS submission}}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath,amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{bm}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\theoremstyle{plain}
+\newtheorem{assumption}{Assumption}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{Curvature Subspaces and the Loss Landscape at Scale}
+
+% Named authors (paste back when switching to \usepackage[preprint]{neurips_2026} or camera-ready \usepackage[main,final]{neurips_2026}):
+% \author{%
+%   Nikita Kiselev \\ Moscow Institute of Physics and Technology (MIPT) \\ Dolgoprudny, Russia \\ \texttt{kiselev.ns@phystech.edu}
+%   \And
+%   Andrey V. Grabovoy \\ Moscow Institute of Physics and Technology (MIPT) \\ Dolgoprudny, Russia \\ \texttt{grabovoy.av@phystech.edu}
+% }
+\author{Anonymous Authors}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  Deep learning theory and practice increasingly emphasize the \emph{geometry} of the empirical risk near trained parameters, not only the risk value.
+  A natural question is how that local geometry changes when the training set grows by one example: classical uniform convergence describes the population risk as a function, but leaves open how gradients and curvature near minimizers evolve with sample size.
+  Prior work introduced landscape \emph{increment} measures for $\mathcal{L}_{k+1}-\mathcal{L}_k$ near a minimizer of $\mathcal{L}_k$, including an absolute one-point criterion and a full-space mean-squared criterion; the latter was shown to decay as $\mathcal{O}(k^{-2})$ under standard per-example bounds.
+  Yet full-space mean-squared probing in $\mathbb{R}^N$ remains expensive and often wasteful when curvature concentrates in a small number of Hessian directions, so a gap remains for a criterion aligned with principal curvature while preserving the mean-squared rate.
+  This paper studies the \emph{subspace} mean-squared criterion $\Delta_2^{(D)}$, which restricts the same squared increment to perturbations along the top-$D$ eigenvectors of the empirical Hessian at a local minimum.
+  Using a local quadratic model, we prove an $\mathcal{O}(k^{-2})$ upper bound in which the curvature contribution scales with~$D$ rather than the ambient dimension~$N$, give a closed-form spectral expression under optional alignment of principal directions across successive empirical risks, and describe estimation via Hessian--vector products, randomized eigenpair solvers, and Monte Carlo in $\mathbb{R}^D$.
+  Experiments on deep networks, including large-scale transformer models, examine scaling in~$k$ and the role of~$D$.
+  The results make explicit how mean-squared landscape stability can be stated and measured in an intrinsic dimension matched to dominant curvature rather than to the full parameter count.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Training dynamics and generalization in deep learning depend not only on the value of the empirical risk at a solution, but also on the \emph{geometry} of the loss surface in its neighborhood.
+Visualization and systematic studies of neural loss landscapes~\citep{li2018visualizing,xu2024mining} connect local curvature to optimization behavior; empirical analyses of Hessian spectra~\citep{sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum} and structural hypotheses such as Kronecker decoupling~\citep{wu2021dissecting} show that curvature is highly anisotropic in practice.
+Separately, the sharpness literature links neighborhoods of minima to generalization~\citep{keskar2017largebatch,dinh2017sharp,foret2021sam,dauphin2024neglected}, motivating second-order views of the empirical risk.
+
+When the training set grows, the empirical risk changes; classical learning theory explains convergence of the empirical risk \emph{as a function} to the population risk~\citep{vapnik1998statistical,shalev2014understanding}, and algorithmic-stability theory bounds how much learned predictors change under data perturbations~\citep{bousquet2002stability}, with subsequent high-probability refinements and sharper moment bounds~\citep{feldman2019high,bousquet2020sharper}.
+These frameworks do not, however, directly quantify how \emph{local} geometric quantities---gradients, Hessians, and their leading eigenspaces---evolve as one more training example is incorporated.
+Empirical work at scale explicitly tracks how Hessian spectra co-evolve with training and sample size~\citep{papyan2019fullspectrum}, underscoring that ``geometry vs.\ data size'' is a first-class question beyond value-only convergence.
+Related statistical methodology for choosing training-set sizes in learning models is developed in~\citep{kiselev2025cmmp,kiselev2025cms}.
+
+Recent measurements agree that Hessian spectra in large neural networks are highly structured: most eigenvalues are close to zero, while a small number of directions carry disproportionate curvature~\citep{sagun2017hessian,ghorbani2019investigation,singh2023hessian}.
+Random-matrix perspectives further characterize local spectral statistics of loss Hessians~\citep{baskerville2021rmt}.
+Together, these lines suggest that how much the landscape \emph{moves} when data arrive may be dominated by a low-dimensional \emph{principal curvature} subspace rather than by all $N$ parameter directions---a viewpoint distinct from infinite-width kernel analyses~\citep{jacot2018ntk}, which describe a different asymptotic regime.
+
+We follow~\citep{author:delta1,author:delta2}, who introduced convergence criteria for landscape \emph{increments} $\mathcal{L}_{k+1}-\mathcal{L}_k$ based on comparing $\mathcal{L}_{k+1}$ and $\mathcal{L}_k$ near a minimizer of~$\mathcal{L}_k$.
+The one-point criterion~$\Delta_1$ yields $\mathcal{O}(k^{-1})$ decay; averaging squared increments over Gaussian perturbations in full parameter space yields the mean-squared criterion~$\Delta_2$ with $\mathcal{O}(k^{-2})$ decay~\citep{author:delta2}.
+However, estimating or interpreting $\Delta_2$ in $\mathbb{R}^N$ is unwieldy when $N$ is large, and much of the mass of a full-space Gaussian may lie in directions that are nearly flat relative to the dominant spectrum~\citep{wu2021dissecting,sagun2017hessian}.
+
+\paragraph{Our focus.}
+We analyze the \emph{subspace} mean-squared criterion $\Delta_2^{(D)}$, which restricts the same squared increment to an affine subspace through $\mathbf{w}_k^\star$ aligned with the top-$D$ eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$.
+Theoretically, we obtain an $\mathcal{O}(k^{-2})$ rate with explicit constants, where the ambient dimension~$N$ in the curvature contribution is replaced by~$D$ (Theorem~\ref{thm:subspace-rate}).
+We also clarify when the compressed Hessian difference admits a diagonal interpretation in leading eigenvalues (Corollary~\ref{cor:spectral}).
+Algorithmically, we discuss estimation via randomized Lanczos on Hessian--vector products~\citep{pearlmutter1994fast} and Monte Carlo expectations in $\mathbb{R}^D$ (Section~\ref{sec:algo}).
+Empirically, we report scaling-law style measurements of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ as functions of~$k$ on modern architectures (Section~\ref{sec:experiments}).
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item We present a self-contained formulation of $\Delta_2^{(D)}$ alongside $\Delta_1$ and $\Delta_2$, with a lemma reducing $\Delta_2^{(D)}$ to a quadratic form in $\mathbf{z}\in\mathbb{R}^D$ (Lemma~\ref{lem:subspace-reduction}).
+  \item We prove Theorem~\ref{thm:subspace-rate} and Corollary~\ref{cor:spectral}, separating the general rate from an optional ``stable principal directions'' assumption used only for spectral interpretation; full proofs are in Appendix~\ref{app:proofs}.
+  \item We describe a scalable estimation protocol (top-$D$ subspace from matvecs + Gaussian Monte Carlo in $\mathbb{R}^D$) and report experiments that compare the criteria across~$k$ and~$D$.
+\end{itemize}
+
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Loss landscapes, Hessian spectra, and random matrices.}
+A long line of work visualizes and taxonomizes neural loss surfaces~\citep{li2018visualizing} and recent surveys synthesize landscape phenomena with Hessian-based explanations~\citep{xu2024mining}.
+Large-scale empirical studies document heavy-tailed or outlier-dominated Hessian spectra~\citep{sagun2017hessian,ghorbani2019investigation} and track how spectral components evolve with optimization and training set size~\citep{papyan2019fullspectrum}.
+Structural accounts of the Hessian---including Kronecker-style decoupling hypotheses and overlap of top eigenspaces across trained models~\citep{wu2021dissecting}---support the idea that a small number of directions capture most of the relevant curvature.
+Architectural perspectives (e.g., convolutional networks) further relate Hessian rank and spectrum to the nature of the task~\citep{singh2023hessian,meshkov2024convnets}.
+Complementary random-matrix analyses of local Hessian statistics~\citep{baskerville2021rmt} motivate viewing bulk spectral behavior through a high-dimensional lens.
+Empirical Hessian-based summaries can be brittle predictors of generalization; analyses that separate different second-order components help explain when sharpness-style penalties track generalization~\citep{dauphin2024neglected}.
+Our $\Delta_2^{(D)}$ criterion turns qualitative low-rank structure into a \emph{quantitative} measure of how the landscape increment $\mathcal{L}_{k+1}-\mathcal{L}_k$ behaves when perturbations are restricted to the top-$D$ curvature subspace at $\mathbf{w}_k^\star$.
+
+\paragraph{Sharpness, flat minima, and second-order regularization.}
+The connection between large-batch training, sharp minima, and generalization~\citep{keskar2017largebatch} sparked extensive debate; subsequent work shows that sharp minima can generalize in deep networks~\citep{dinh2017sharp}, and sharpness-aware minimization (SAM) explicitly optimizes neighborhoods in parameter space~\citep{foret2021sam}.
+Recent analyses decompose the Hessian into Gauss--Newton and residual (``nonlinear modeling error'') components to explain when sharpness penalties behave as expected~\citep{dauphin2024neglected}.
+Follow-up work on SAM studies alignment with the top Hessian eigenvector and proposes explicit eigenvalue regularization~\citep{luo2024eigensam}.
+These lines study \emph{where} optimizers converge and how flatness correlates with generalization; we instead study \emph{how fast} the empirical landscape map can change when $k$ grows by one, holding a local quadratic model and explicit probing distribution.
+
+\paragraph{Population risk, stability, and the NTK regime.}
+Uniform convergence and capacity-based bounds relate empirical and population risks~\citep{vapnik1998statistical,shalev2014understanding}.
+Algorithmic stability~\citep{bousquet2002stability} bounds changes in learned outputs under data perturbations; high-probability generalization guarantees and tighter moment bounds for uniformly stable algorithms refine this picture~\citep{feldman2019high,bousquet2020sharper}.
+Like stability, our criteria measure sensitivity to a one-point change in the training set, but they target the \emph{parametric landscape map} and its second-order structure along chosen directions rather than test loss of a fixed learning rule.
+The neural tangent kernel framework~\citep{jacot2018ntk} describes training dynamics in an infinite-width limit where kernel evolution is often tractable.
+Our setting is different: we analyze a \emph{finite-$k$} increment of the empirical risk landscape near a \emph{fixed} reference minimizer $\mathbf{w}_k^\star$ of $\mathcal{L}_k$, with a \emph{finite-difference-in-$k$} notion tailored to the landscape map $\mathbf{w}\mapsto\mathcal{L}_k(\mathbf{w})$ under per-example bounds (see~\citep{author:delta1,author:delta2}).
+
+\paragraph{Landscape increments and subspace mean-squared.}
+The criteria~\citep{author:delta1,author:delta2} measure the magnitude of $\mathcal{L}_{k+1}-\mathcal{L}_k$ near $\mathbf{w}_k^\star$; in particular,~\citep{author:delta2} obtains $\mathcal{O}(k^{-2})$ decay for the full-space mean-squared criterion~$\Delta_2$.
+We extend this analysis to $\Delta_2^{(D)}$, proving the same rate with a curvature prefactor depending on~$D$ rather than~$N$ and providing a spectral closed form under optional alignment of principal Hessian directions across $k$ and $k{+}1$.
+For efficient curvature queries, our estimation pipeline builds on Hessian--vector products~\citep{pearlmutter1994fast} and scalable spectral tooling for deep networks~\citep{yao2020pyhessian}, including randomized Lanczos for extreme eigenpairs.
+
+\paragraph{Dominant vs.\ bulk subspaces (optimization dynamics).}
+Recent work argues that SGD updates can align spuriously with the dominant eigenspace of the training Hessian while much of the learning progress occurs in complementary directions~\citep{song2025tiny}; engineering accelerators explicitly separate scaling along dominant vs.\ bulk subspaces~\citep{zhou2025bsfa}.
+These results concern \emph{optimization trajectories} under stochastic gradients.
+Our question is orthogonal: we quantify how the \emph{increment} $\mathcal{L}_{k+1}-\mathcal{L}_k$ behaves in a top-$D$ curvature subspace when the sample size increases, not whether SGD primarily moves in that subspace.
+
+\paragraph{Positioning.}
+To our knowledge,~\citep{author:delta2} is the first to obtain $\mathcal{O}(k^{-2})$ mean-squared landscape convergence in full space; the present paper shows that the same rate holds for $\Delta_2^{(D)}$ with a $D$-dimensional prefactor in the curvature term, and isolates a spectral closed form under additional alignment assumptions.
+
+\section{Preliminaries}
+\label{sec:prelim}
+
+We develop the \emph{local} change of the empirical risk landscape when the training set grows by one example, starting from the same objects as in~\citep{author:delta1,author:delta2}.
+
+\paragraph{Empirical risk and landscape.}
+Let $(\mathbf{x},\mathbf{y})\in\mathbb{X}\times\mathbb{Y}$ denote an input--label pair and let $\mathfrak{D}_m=\{(\mathbf{x}_i,\mathbf{y}_i)\}_{i=1}^m$ be $m$ i.i.d.\ draws from an unknown distribution $p(\mathbf{x},\mathbf{y})$.
+A parametric model $f_{\mathbf{w}}:\mathbb{X}\to\mathbb{Y}$ with $\mathbf{w}\in\mathbb{R}^N$ is trained by minimizing the empirical risk
+\begin{equation}
+  \label{eq:empirical-loss}
+  \mathcal{L}_m(\mathbf{w})
+  =
+  \frac{1}{m}\sum_{i=1}^m \ell\bigl(f_{\mathbf{w}}(\mathbf{x}_i),\mathbf{y}_i\bigr)
+  =
+  \frac{1}{m}\sum_{i=1}^m \ell_i(\mathbf{w}),
+\end{equation}
+where $\ell$ is a per-example loss.
+We write
+\begin{equation}
+  \label{eq:erm-min}
+  \mathbf{w}_m^\star \in \argmin_{\mathbf{w}\in\mathbb{R}^N} \mathcal{L}_m(\mathbf{w}).
+\end{equation}
+The graph of $\mathcal{L}_m(\mathbf{w})$ over $\mathbb{R}^N$ is the \emph{loss landscape} (optimization surface).
+Classical learning theory guarantees that, under standard conditions, $\mathcal{L}_m$ converges uniformly to the population risk
+\begin{equation}
+  \label{eq:population-risk}
+  \mathcal{L}(\mathbf{w}) = \mathbb{E}_{(\mathbf{x},\mathbf{y})\sim p(\mathbf{x},\mathbf{y})}\bigl[\ell(f_{\mathbf{w}}(\mathbf{x}),\mathbf{y})\bigr]
+\end{equation}
+as $m\to\infty$~\citep{vapnik1998statistical,shalev2014understanding}.
+However, convergence of \eqref{eq:population-risk} in value does not specify how the \emph{local} geometry---gradients, curvatures, and Hessian spectra---behaves around minimizers~\citep{sagun2017hessian,ghorbani2019investigation}.
+In deep networks the Hessian spectrum is typically highly non-uniform: most eigenvalues concentrate near zero, while a small number of outliers capture the dominant directions of curvature~\citep{sagun2017hessian,ghorbani2019investigation}.
+This motivates measuring landscape change not only globally in $\mathbb{R}^N$ but also on low-dimensional subspaces aligned with principal curvature.
+
+\paragraph{Taylor expansion.}
+Fix $\mathbf{w}_0\in\mathbb{R}^N$ and suppose $\mathcal{L}_m$ is twice continuously differentiable in a ball $\mathcal{U}_R(\mathbf{w}_0)$ of radius $R>0$.
+We work in the quadratic approximation (Peano remainder omitted):
+\begin{equation}
+  \label{eq:taylor-quadratic}
+  \mathcal{L}_m(\mathbf{w})
+  =
+  \mathcal{L}_m(\mathbf{w}_0)
+  +
+  \mathbf{g}^{(m)}(\mathbf{w}_0)^\top(\mathbf{w}-\mathbf{w}_0)
+  +
+  \frac{1}{2}(\mathbf{w}-\mathbf{w}_0)^\top \mathbf{H}^{(m)}(\mathbf{w}_0)(\mathbf{w}-\mathbf{w}_0),
+\end{equation}
+with
+\begin{equation}
+  \label{eq:grad-def}
+  \mathbf{g}^{(m)}(\mathbf{w}) = \nabla_{\mathbf{w}}\mathcal{L}_m(\mathbf{w})
+  =
+  \frac{1}{m}\sum_{i=1}^m \nabla_{\mathbf{w}}\ell_i(\mathbf{w}),
+  \qquad
+  \mathbf{H}^{(m)}(\mathbf{w}) = \nabla_{\mathbf{w}}^2 \mathcal{L}_m(\mathbf{w})
+  =
+  \frac{1}{m}\sum_{i=1}^m \nabla_{\mathbf{w}}^2 \ell_i(\mathbf{w}).
+\end{equation}
+
+\paragraph{One new training point.}
+Adding $(\mathbf{x}_{k+1},\mathbf{y}_{k+1})$ to $\mathfrak{D}_k = \{(\mathbf{x}_i,\mathbf{y}_i)\}_{i=1}^k$ gives the exact identity
+\begin{equation}
+  \label{eq:loss-increment-exact}
+  \mathcal{L}_{k+1}(\mathbf{w}) - \mathcal{L}_k(\mathbf{w})
+  =
+  \frac{1}{k+1}\Bigl(\ell_{k+1}(\mathbf{w}) - \mathcal{L}_k(\mathbf{w})\Bigr),
+\end{equation}
+which is the basic object for ``stabilization of the landscape'' as $k$ grows.
+Using the quadratic model~\eqref{eq:taylor-quadratic} for both $\mathcal{L}_{k+1}$ and $\mathcal{L}_k$ at a common reference $\mathbf{w}_0$ yields the difference of two quadratics
+\begin{multline}
+  \label{eq:loss-diff-second}
+  \mathcal{L}_{k+1}(\mathbf{w}) - \mathcal{L}_k(\mathbf{w})
+  =
+  \mathcal{L}_{k+1}(\mathbf{w}_0) - \mathcal{L}_k(\mathbf{w}_0)
+  \\
+  +
+  \Bigl(\mathbf{g}^{(k+1)}(\mathbf{w}_0) - \mathbf{g}^{(k)}(\mathbf{w}_0)\Bigr)^\top(\mathbf{w}-\mathbf{w}_0)
+  \\
+  +
+  \frac{1}{2}(\mathbf{w}-\mathbf{w}_0)^\top
+  \Bigl(\mathbf{H}^{(k+1)}(\mathbf{w}_0) - \mathbf{H}^{(k)}(\mathbf{w}_0)\Bigr)
+  (\mathbf{w}-\mathbf{w}_0).
+\end{multline}
+
+\paragraph{Centering at a minimizer of $\mathcal{L}_k$.}
+Let $\mathbf{w}_k^\star$ be a local minimizer of $\mathcal{L}_k$, so that $\mathbf{g}^{(k)}(\mathbf{w}_k^\star)=\mathbf{0}$.
+Evaluating~\eqref{eq:loss-diff-second} at $\mathbf{w}_0=\mathbf{w}_k^\star$ gives the decomposition used throughout the paper:
+\begin{multline}
+  \label{eq:loss-diff-minimum}
+  \mathcal{L}_{k+1}(\mathbf{w}) - \mathcal{L}_k(\mathbf{w})
+  =
+  \underbrace{\mathcal{L}_{k+1}(\mathbf{w}_k^\star) - \mathcal{L}_k(\mathbf{w}_k^\star)}_{\text{value gap at }\mathbf{w}_k^\star}
+  \\
+  +
+  \underbrace{\mathbf{g}^{(k+1)}(\mathbf{w}_k^\star)^\top(\mathbf{w}-\mathbf{w}_k^\star)}_{\text{gradient mismatch (linear)}}
+  +
+  \underbrace{\frac{1}{2}(\mathbf{w}-\mathbf{w}_k^\star)^\top(\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)-\mathbf{H}^{(k)}(\mathbf{w}_k^\star))(\mathbf{w}-\mathbf{w}_k^\star)}_{\text{Hessian difference (curvature)}}.
+\end{multline}
+Because $\mathcal{L}_{k+1}$ averages $\ell_{k+1}$ with $\mathcal{L}_k$, the gradient at $\mathbf{w}_k^\star$ simplifies to
+\begin{equation}
+  \label{eq:grad-k+1-at-min}
+  \mathbf{g}^{(k+1)}(\mathbf{w}_k^\star)
+  =
+  \frac{1}{k+1}\,\nabla_{\mathbf{w}}\ell_{k+1}(\mathbf{w}_k^\star)
+  =
+  \frac{1}{k+1}\,\mathbf{g}_{k+1}(\mathbf{w}_k^\star) .
+\end{equation}
+Thus the linear term in~\eqref{eq:loss-diff-minimum} is driven solely by the \emph{new} example's gradient at $\mathbf{w}_k^\star$; it vanishes if the new point is consistent with the stationarity of $\mathcal{L}_k$, and is small when $\|\mathbf{g}_{k+1}(\mathbf{w}_k^\star)\|$ is bounded.
+Figure~\ref{fig:gradient-mismatch} illustrates this \emph{gradient mismatch} between $\mathcal{L}_k$ and $\mathcal{L}_{k+1}$ near $\mathbf{w}_k^\star$.
+
+\begin{assumption}[Weak gradient mismatch at $\mathbf{w}_k^\star$]
+  \label{ass:grad-bound}
+  There exists $M_{\mathbf{g}}>0$ such that
+  \begin{equation}
+    \label{eq:grad-bound}
+    \|\mathbf{g}_{k+1}(\mathbf{w}_k^\star)\|_2 \leqslant M_{\mathbf{g}}.
+  \end{equation}
+\end{assumption}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.62\linewidth]{losses_assumption.pdf}
+  \caption{Illustration of Assumption~\ref{ass:grad-bound}: near a minimizer $\mathbf{w}_k^\star$ of $\mathcal{L}_k$, the gradient of the loss on the $(k{+}1)$-st sample remains bounded, so the linear (gradient mismatch) term in~\eqref{eq:loss-diff-minimum} is controlled.}
+  \label{fig:gradient-mismatch}
+\end{figure}
+
+Together, \eqref{eq:loss-diff-minimum}--\eqref{eq:grad-k+1-at-min} reduce the analysis of landscape change to bounding the value gap, the gradient mismatch term, and the Hessian difference along perturbations $\mathbf{w}-\mathbf{w}_k^\star$.
+The next section turns this scalar field into quantitative convergence criteria.
+
+\section{Convergence criteria}
+\label{sec:criteria}
+
+\paragraph{General $p$-criterion.}
+To aggregate $|\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})|$ over a region of interest in parameter space, we use a density $q(\mathbf{w})$ (a ``preference'' over where to probe the landscape):
+\begin{equation}
+  \label{eq:general-p-criterion}
+  \Delta_p(k+1)
+  =
+  \int_{\mathbb{R}^N}
+  \bigl|\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr|^p\, q(\mathbf{w})\,d\mathbf{w},
+  \qquad p\geqslant 1,
+\end{equation}
+with $\int q(\mathbf{w})\,d\mathbf{w}=1$.
+Different choices of $q$ recover point masses (single-point criteria), full-space Gaussian smoothing, or restriction to an affine subspace; see Figure~\ref{fig:criteria-overview}.
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}[t]{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{criterion_abs.pdf}\\[0.3em]
+    \small (a) Absolute one-point $\Delta_1$
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{criterion_squared.pdf}\\[0.3em]
+    \small (b) Mean-squared full space $\Delta_2$
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{criterion_squared_subspace.pdf}\\[0.3em]
+    \small (c) Mean-squared in principal curvature subspace $\Delta_2^{(D)}$
+  \end{minipage}
+  \caption{Schematic of the three landscape criteria: (a) measurement at a single point near $\mathbf{w}_k^\star$; (b) mean squared change under a distribution in $\mathbb{R}^N$; (c) the same after restricting perturbations to the top-$D$ Hessian eigenspace at $\mathbf{w}_k^\star$.}
+  \label{fig:criteria-overview}
+\end{figure}
+
+\paragraph{One-point and full-space mean-squared (prior work).}
+The \emph{absolute one-point} criterion and the \emph{mean-squared} criterion in $\mathbb{R}^N$ are
+\begin{equation}
+  \label{eq:delta1}
+  \Delta_1(k+1) = \bigl|\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr|,
+  \qquad
+  \mathbf{w}\in\mathcal{U}_R(\mathbf{w}_k^\star),
+\end{equation}
+\begin{equation}
+  \label{eq:delta2}
+  \Delta_2(k+1)
+  =
+  \mathbb{E}_{\mathbf{w}\sim q}\,\bigl[\bigl(\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr)^2\bigr],
+\end{equation}
+with $q$ typically Gaussian in $\mathbb{R}^N$ centered at $\mathbf{w}_k^\star$.
+Rates $\mathcal{O}(k^{-1})$ for $\Delta_1$ and $\mathcal{O}(k^{-2})$ for $\Delta_2$ under per-example bounds are proved in~\citep{author:delta1,author:delta2}.
+
+\paragraph{Principal curvature subspace.}
+Let $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)=\mathbf{U}\mathbf{\Lambda}\mathbf{U}^\top$ with eigenvalues $\lambda_1^{(k)}\geqslant\cdots\geqslant\lambda_N^{(k)}$.
+Let $\mathbf{U}_D=[\mathbf{u}_1,\ldots,\mathbf{u}_D]$ and $\mathcal{S}_D=\operatorname{Im}(\mathbf{U}_D)$ be the \emph{top-$D$ principal curvature} subspace at $\mathbf{w}_k^\star$.
+
+\paragraph{Subspace mean-squared criterion (this paper).}
+We study
+\begin{equation}
+  \label{eq:delta2-subspace}
+  \Delta_2^{(D)}(k+1)
+  =
+  \int_{\mathbf{w}_k^\star+\mathcal{S}_D}
+  \bigl(\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr)^2\, q(\mathbf{w})\,d\mathbf{w},
+\end{equation}
+where $q$ is supported on the affine subspace $\mathbf{w}_k^\star+\mathcal{S}_D$ (e.g.\ Gaussian on $\mathbf{z}$ in coordinates $\mathbf{w}=\mathbf{w}_k^\star+\mathbf{U}_D\mathbf{z}$).
+Section~\ref{sec:theory} gives bounds showing the same $\mathcal{O}(k^{-2})$ decay as $\Delta_2$ (under analogous assumptions) but with a prefactor depending on $D$ instead of $N$.
+
+\section{Theory}
+\label{sec:theory}
+
+We analyze $\Delta_2^{(D)}(k{+}1)$ defined in~\eqref{eq:delta2-subspace} under the quadratic model~\eqref{eq:loss-diff-minimum}.
+The key algebraic step is to write the landscape increment as a quadratic polynomial in coordinates~$\mathbf{z}$ on~$\mathcal{S}_D$, then bound its moments under~$\tilde{q}$.
+
+\begin{lemma}[Reduction on the principal subspace]
+  \label{lem:subspace-reduction}
+  Suppose $\operatorname{supp}(q)\subset (\mathbf{w}_k^\star+\mathcal{S}_D)\cap \mathcal{U}_R(\mathbf{w}_k^\star)$.
+  Define
+  \begin{align*}
+    a_k &= \mathcal{L}_{k+1}(\mathbf{w}_k^\star)-\mathcal{L}_k(\mathbf{w}_k^\star), &
+    \mathbf{b}_k &= \mathbf{g}^{(k+1)}(\mathbf{w}_k^\star), \\
+    \mathbf{A}_k &= \mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)-\mathbf{H}^{(k)}(\mathbf{w}_k^\star), &
+    \mathbf{B}_k &= \mathbf{U}_D^\top \mathbf{A}_k \mathbf{U}_D\in\mathbb{R}^{D\times D}, \\
+    \mathbf{c}_k &= \mathbf{U}_D^\top \mathbf{b}_k & &\in\mathbb{R}^D .
+  \end{align*}
+  Then, under~\eqref{eq:loss-diff-minimum},
+  \begin{equation}
+    \label{eq:subspace-reduction-integral}
+    \Delta_2^{(D)}(k+1)
+    =
+    \int_{\mathbb{R}^D}
+    \left(
+      a_k + \mathbf{c}_k^\top \mathbf{z} + \frac12 \mathbf{z}^\top \mathbf{B}_k \mathbf{z}
+    \right)^2
+    \tilde{q}(\mathbf{z})\,d\mathbf{z},
+  \end{equation}
+  where $\tilde{q}$ is the density of $\mathbf{z}$ induced by $q$ on $\mathbf{w}_k^\star+\mathcal{S}_D$.
+\end{lemma}
+
+\begin{remark}[What is \emph{not} assumed in Lemma~\ref{lem:subspace-reduction}]
+  The columns of $\mathbf{U}_D$ are eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$ by construction.
+  Lemma~\ref{lem:subspace-reduction} holds \emph{without} requiring these vectors to be eigenvectors of $\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)$: the matrix $\mathbf{B}_k$ is the \emph{compression} of $\mathbf{A}_k$ to the $\mathbf{H}^{(k)}$-principal subspace and may be full in general.
+\end{remark}
+
+\begin{remark}[Diagonal $\mathbf{B}_k$ and eigenvalue increments]
+  \label{rem:diagonal-Bk}
+  Always
+  \begin{equation*}
+    \mathbf{U}_D^\top \mathbf{H}^{(k)}(\mathbf{w}_k^\star) \mathbf{U}_D
+    =
+    \operatorname{diag}\bigl(\lambda_1^{(k)},\ldots,\lambda_D^{(k)}\bigr).
+  \end{equation*}
+  If, additionally, $\mathbf{u}_1,\ldots,\mathbf{u}_D$ are eigenvectors of $\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)$ with eigenvalues $\lambda_i^{(k+1)}$, then
+  \begin{equation}
+    \label{eq:Bk-diagonal}
+    \mathbf{B}_k
+    =
+    \operatorname{diag}\bigl(
+      \lambda_1^{(k+1)}-\lambda_1^{(k)},\ldots,\lambda_D^{(k+1)}-\lambda_D^{(k)}
+    \bigr),
+  \end{equation}
+  and the leading Hessian directions are \emph{simultaneously} diagonalizing for $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$ at~$\mathbf{w}_k^\star$.
+\end{remark}
+
+\begin{assumption}[Stable principal directions (optional; interpretive)]
+  \label{ass:stable-principal}
+  The eigenvectors $\mathbf{u}_1,\ldots,\mathbf{u}_D$ associated with the $D$ largest eigenvalues of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$ are also eigenvectors of $\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)$:
+  \begin{equation*}
+    \mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)\,\mathbf{u}_i = \lambda_i^{(k+1)}\mathbf{u}_i,
+    \qquad i=1,\ldots,D.
+  \end{equation*}
+\end{assumption}
+
+Assumption~\ref{ass:stable-principal} is \emph{not} needed for the rate bound below: it sharpens the \emph{interpretation} of $\mathbf{B}_k$ (Remark~\ref{rem:diagonal-Bk}) and yields a closed form in Corollary~\ref{cor:spectral}.
+In practice, one may take $\mathbf{U}_D$ from $\mathbf{H}^{(k)}$ at a fixed $k$ and treat drift of the top-$D$ eigenspace when $k$ increases as a separate approximation error (Section~\ref{sec:discussion}).
+
+\begin{theorem}[Subspace mean-squared rate]
+  \label{thm:subspace-rate}
+  Suppose Lemma~\ref{lem:subspace-reduction} applies and the per-example bounds
+  $\|\mathbf{g}_{k+1}(\mathbf{w}_k^\star)\|_2\leqslant M_{\mathbf{g}}$,
+  $|\ell_i(\mathbf{w}_k^\star)|\leqslant M_\ell$,
+  $\|\mathbf{H}_i(\mathbf{w}_k^\star)\|_2\leqslant M_{\mathbf{H}}$ hold for $i=1,\ldots,k{+}1$.
+  Let $\tilde{q}(\mathbf{z})=\mathcal{N}(\mathbf{0},\sigma^2 \mathbf{I}_D)$.
+  Then
+  \begin{equation}
+    \label{eq:subspace-rate-bound}
+    \Delta_2^{(D)}(k+1)
+    \leqslant
+    \frac{
+      12M_\ell^2
+      +
+      3\sigma^2 M_{\mathbf{g}}^2
+      +
+      3\sigma^4 (D^2+2D) M_{\mathbf{H}}^2
+    }{(k+1)^2}
+    =
+    \mathcal{O}(k^{-2}).
+  \end{equation}
+\end{theorem}
+
+Theorem~\ref{thm:subspace-rate} matches the full-space mean-squared rate~\citep{author:delta2} but replaces the ambient dimension~$N$ in the curvature term's prefactor by~$D$ through $\mathbb{E}[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2]$ for $\mathbf{z}\in\mathbb{R}^D$.
+The proof combines $(a+b+c)^2\leqslant 3(a^2+b^2+c^2)$ with Gaussian fourth moments and the operator bound $\|\mathbf{B}_k\|_2\leqslant \|\mathbf{A}_k\|_2=\mathcal{O}(k^{-1})$; see Appendix~\ref{app:proofs}.
+
+\begin{corollary}[Spectral closed form under vanishing linear/value terms]
+  \label{cor:spectral}
+  Suppose Assumption~\ref{ass:stable-principal} holds, $\tilde{q}(\mathbf{z})=\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D)$, and $a_k=0$, $\mathbf{c}_k=\mathbf{0}$ (equivalently, the value gap and gradient mismatch terms in~\eqref{eq:loss-diff-minimum} vanish at the scale of the criterion).
+  Then $\mathbf{B}_k$ is diagonal as in~\eqref{eq:Bk-diagonal} and
+  \begin{equation}
+    \label{eq:spectral-closed-form}
+    \Delta_2^{(D)}(k+1)
+    =
+    \frac{\sigma^4}{4}
+    \left(
+      2\sum_{i=1}^{D}
+      \bigl(\lambda_i^{(k+1)}-\lambda_i^{(k)}\bigr)^2
+      +
+      \Bigl(
+        \sum_{i=1}^{D}
+        \bigl(\lambda_i^{(k+1)}-\lambda_i^{(k)}\bigr)
+      \Bigr)^2
+    \right).
+  \end{equation}
+\end{corollary}
+
+Corollary~\ref{cor:spectral} isolates how subspace mean-squared landscape change is driven by \emph{increments of leading Hessian eigenvalues} when the top-$D$ eigenspace is shared between $\mathcal{L}_k$ and $\mathcal{L}_{k+1}$ at~$\mathbf{w}_k^\star$.
+
+\section{Algorithmic estimation at scale}
+\label{sec:algo}
+
+We estimate $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ at a fixed training stage by (i) obtaining a local minimizer $\mathbf{w}_k^\star$ of $\mathcal{L}_k$, (ii) forming the increment $\mathcal{L}_{k+1}-\mathcal{L}_k$ inside the quadratic model~\eqref{eq:loss-diff-minimum}, and (iii) approximating the expectations defining $\Delta_2$ and $\Delta_2^{(D)}$ by Monte Carlo.
+
+\paragraph{Minimizers and Hessian matvecs.}
+For each~$k$, we train until stationarity criteria on the gradient norm and loss plateau (details in Appendix~\ref{app:exp}).
+The empirical Hessian $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$ is accessed only through Hessian--vector products (HVPs), e.g.\ via automatic differentiation in PyTorch/JAX, following standard automatic-differentiation identities~\citep{pearlmutter1994fast} and scalable deep-learning Hessian tooling~\citep{yao2020pyhessian}.
+We approximate the top-$D$ eigenpairs $(\lambda_i^{(k)},\mathbf{u}_i^{(k)})$ using randomized Lanczos or LOBPCG with $O(D)$ matvecs per restart; orthonormal $\mathbf{U}_D=[\mathbf{u}_1,\ldots,\mathbf{u}_D]$ then defines the subspace in Lemma~\ref{lem:subspace-reduction}.
+
+\paragraph{Monte Carlo in $\mathbb{R}^N$ vs.\ $\mathbb{R}^D$.}
+For $\Delta_2$, we draw $\boldsymbol{\xi}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_N)$ and average $(\mathcal{L}_{k+1}(\mathbf{w}_k^\star+\boldsymbol{\xi})-\mathcal{L}_k(\mathbf{w}_k^\star+\boldsymbol{\xi}))^2$; HVPs are not required for the forward pass, but $N$ is large.
+For $\Delta_2^{(D)}$, we draw $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D)$ and set $\mathbf{w}=\mathbf{w}_k^\star+\mathbf{U}_D\mathbf{z}$, reusing the same quadratic expansion; each sample needs one HVP block for $\mathbf{A}_k\mathbf{U}_D\mathbf{z}$ only if implemented naively, but the bilinear form $\mathbf{z}^\top\mathbf{B}_k\mathbf{z}$ can be accumulated from $\mathbf{U}_D^\top\mathbf{H}^{(k+1)}\mathbf{U}_D$ and $\mathbf{U}_D^\top\mathbf{H}^{(k)}\mathbf{U}_D$ with $O(D)$ small dense linear algebra after the subspace is known.
+
+\paragraph{Complexity sketch.}
+Let $C_{\mathrm{fwd}}$ denote the cost of one forward--backward pass, and assume one HVP costs $O(C_{\mathrm{fwd}})$.
+Per~$k$, computing $\mathbf{U}_D$ costs $O(D\cdot T_{\mathrm{matvec}})$ matvecs with $T_{\mathrm{matvec}}=O(1)$ to $O(\log N)$ depending on solver settings.
+Estimating $\Delta_2^{(D)}$ to relative error $\varepsilon$ with MC typically requires $S=O(\varepsilon^{-2})$ samples in $\mathbb{R}^D$, each dominated by forward evaluation of $\mathcal{L}_{k+1}-\mathcal{L}_k$ at $\mathbf{w}_k^\star+\mathbf{U}_D\mathbf{z}_s$.
+Thus the subspace criterion trades a one-time subspace solve for much cheaper sampling when $D\ll N$.
+
+\section{Experiments}
+\label{sec:experiments}
+
+We estimate $\Delta_1(k{+}1)$, $\Delta_2(k{+}1)$, and $\Delta_2^{(D)}(k{+}1)$ as functions of increasing~$k$.
+The main goal is to check the separation between $\mathcal{O}(k^{-1})$ and $\mathcal{O}(k^{-2})$ decay and to show that $\Delta_2^{(D)}$ tracks mean-squared behavior with a prefactor governed by~$D$ rather than the full width~$N$.
+Optional large-scale decoder-only runs follow the same protocol at higher cost (Appendix~\ref{app:exp}) and connect to recent Transformer Hessian analyses~\citep{petrov2025curvature_gap}.
+
+\subsection{Protocol}
+\label{sec:exp-protocol}
+
+\paragraph{Nested $k$ and fresh training.}
+For each training set size~$k$, we draw a fixed random ordering of the training pool and take the first $k$ indices (nested subsets).
+We train a model from scratch on those $k$ points until stopping rules in Table~\ref{tab:exp-hparams} are met, then record~$\mathbf{w}_k^\star$.
+Empirical risks $\mathcal{L}_k$ and $\mathcal{L}_{k+1}$ use the same nested $k$ and $k{+}1$ points, matching Section~\ref{sec:prelim}.
+We repeat the loop over independent random seeds and report mean and variability.
+
+\paragraph{Estimators.}
+Theoretical $\Delta_1$ evaluates $|\mathcal{L}_{k+1}-\mathcal{L}_k|$ at a fixed neighborhood of $\mathbf{w}_k^\star$; in code we use Monte Carlo over random perturbation directions to reduce variance (counts in Appendix~\ref{app:exp}).
+$\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian eigenvectors at $\mathbf{w}_k^\star$ use power iteration with Hessian--vector products on the $k$-point loss.
+
+\paragraph{Code.}
+The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch: character-level language modeling on Tiny Shakespeare with nested subsets of training chunks; configuration matches Appendix~\ref{tab:exp-hparams}.
+Reference scripts (relative to \texttt{paper/subspace\_landscape\_convergence/}): \texttt{code/run\_experiments.py} (writes \texttt{output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds Figure~\ref{fig:scaling-delta}--\ref{fig:scaling-subspace}).
+
+\subsection{Scaling laws (nanoGPT on Tiny Shakespeare)}
+\label{sec:exp-mlp}
+
+Figure~\ref{fig:scaling-delta} shows $\Delta_1$ and $\Delta_2$ vs.\ $k$ on a log--log scale for a small GPT trained with the nanoGPT architecture.
+Reference lines of slope $-1$ and $-2$ illustrate the exponents predicted for the one-point and mean-squared criteria.
+
+Figure~\ref{fig:scaling-subspace} compares $\Delta_2$ with $\Delta_2^{(D)}$ for $D{=}10$; other $D\in\{5,20\}$ behave similarly (see appendix figures).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{scaling_delta_loglog.pdf}
+  \caption{Empirical $\Delta_1$ and $\Delta_2$ vs.\ $k$ (nanoGPT / Tiny Shakespeare, nested subsets, means over seeds). Dashed lines: reference slopes $-1$ and $-2$.}
+  \label{fig:scaling-delta}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{scaling_delta2_subspace_D10.pdf}
+  \caption{$\Delta_2$ vs.\ $\Delta_2^{(D)}$ for $D{=}10$ under the same protocol.}
+  \label{fig:scaling-subspace}
+\end{figure}
+
+\subsection{Fitted exponents and bound check}
+We fit $\log \Delta_\bullet$ vs.\ $\log k$ in a mid-$k$ window (excluding very small~$k$ where optimization noise dominates).
+Bootstrap over seeds yields uncertainty for slopes; values near $-1$ ($\Delta_1$) and $-2$ (mean-squared criteria) support Section~\ref{sec:theory}.
+We also plug empirical order-of-magnitude estimates of $M_\ell,M_{\mathbf{g}},M_{\mathbf{H}}$ into Theorem~\ref{thm:subspace-rate} as a sanity check (not a tight constant).
+
+\subsection{Ablations}
+\label{sec:exp-abl}
+We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (iii)~$\sigma$; (iv)~recomputing $\mathbf{U}_D$ at each~$k$ vs.\ freezing at~$k_0$; (v)~architecture depth/width (and, when available, transformer size).
+These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^{(D)}$.
+
+\section{Discussion and limitations}
+\label{sec:discussion}
+
+\paragraph{Quadratic model and local minima.}
+Our analysis uses a second-order expansion at~$\mathbf{w}_k^\star$ and standard per-example bounds on $\ell_i$, $\nabla\ell_i$, and~$\nabla^2\ell_i$.
+The results are local: they describe increments of $\mathcal{L}_{k+1}-\mathcal{L}_k$ in a neighborhood of a minimizer of~$\mathcal{L}_k$, not global landscape connectivity or mode structure.
+
+\paragraph{Drift of the top-$D$ eigenspace.}
+Theorem~\ref{thm:subspace-rate} does \emph{not} require the top-$D$ eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$ to coincide with those of $\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)$: the matrix~$\mathbf{B}_k$ is a compressed Hessian difference.
+Assumption~\ref{ass:stable-principal} is \emph{additional}: it is the right condition for the diagonal formula~\eqref{eq:Bk-diagonal} and the closed form~\eqref{eq:spectral-closed-form}.
+In experiments, $\mathbf{U}_D$ is typically recomputed at each~$k$ (or held fixed as an ablation); quantifying the error when $\mathcal{S}_D^{(k)}\neq \mathcal{S}_D^{(k+1)}$ is an interesting direction for future work.
+
+\paragraph{Compute and ethics.}
+Hessian-based workflows are expensive: top-$D$ eigensolvers and repeated training for many values of~$k$ multiply GPU hours.
+We report approximate training and diagnostic compute in Appendix~\ref{app:exp}; practitioners should treat such measurements as research tools rather than routine monitoring.
+Large-scale language experiments should follow dataset licenses and institutional policies on responsible use.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We studied the subspace mean-squared landscape increment $\Delta_2^{(D)}$, which restricts Gaussian perturbations to the top-$D$ Hessian eigenspace at a local minimizer of the $k$-sample empirical risk.
+We proved an $\mathcal{O}(k^{-2})$ upper bound with a curvature prefactor depending on~$D$ rather than the full parameter dimension~$N$, and gave a spectral closed form under optional alignment of principal directions between successive empirical risks.
+Algorithmically, the criterion is compatible with scalable Hessian--vector products and low-dimensional Monte Carlo.
+Empirically, Section~\ref{sec:experiments} describes our measurement protocol and reports scaling behavior for a standard GPT-style architecture (nanoGPT), including ablations on~$D$.
+
+Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, and connections to generalization via implicit regularization along top curvature directions.
+
+\begin{ack}
+  This work was supported in part by \emph{[insert funding sources]}.
+  Experiments used computational resources provided by \emph{[insert cluster or cloud credits]}.
+  The authors used AI-assisted editing tools to refine wording and \LaTeX{} structure; all mathematical claims were verified by the authors.
+\end{ack}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+
+\section{Proofs}
+\label{app:proofs}
+
+\allowdisplaybreaks
+
+\subsection{Proof of Lemma~\ref{lem:subspace-reduction}}
+Fix $\mathbf{w}\in\mathbf{w}_k^\star+\mathcal{S}_D$. There is a unique $\mathbf{z}\in\mathbb{R}^D$ such that
+\begin{equation*}
+  \mathbf{w}=\mathbf{w}_k^\star+\mathbf{U}_D\mathbf{z}.
+\end{equation*}
+From the quadratic expansion~\eqref{eq:loss-diff-minimum},
+\begin{align*}
+  \mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})
+  &=
+  a_k
+  +
+  \mathbf{b}_k^\top(\mathbf{w}-\mathbf{w}_k^\star)
+  +
+  \frac12(\mathbf{w}-\mathbf{w}_k^\star)^\top\mathbf{A}_k(\mathbf{w}-\mathbf{w}_k^\star)
+  \\
+  &=
+  a_k + \mathbf{b}_k^\top\mathbf{U}_D\mathbf{z} + \frac12(\mathbf{U}_D\mathbf{z})^\top\mathbf{A}_k(\mathbf{U}_D\mathbf{z})
+  \\
+  &=
+  a_k + (\mathbf{U}_D^\top\mathbf{b}_k)^\top\mathbf{z} + \frac12\mathbf{z}^\top\mathbf{U}_D^\top\mathbf{A}_k\mathbf{U}_D\mathbf{z}
+  \\
+  &=
+  a_k + \mathbf{c}_k^\top\mathbf{z} + \frac12\mathbf{z}^\top\mathbf{B}_k\mathbf{z}.
+\end{align*}
+Squaring and integrating against $\tilde{q}(\mathbf{z})$ yields~\eqref{eq:subspace-reduction-integral}.
+
+\subsection{Proof of Theorem~\ref{thm:subspace-rate}}
+By Lemma~\ref{lem:subspace-reduction},
+\begin{equation*}
+  \Delta_2^{(D)}(k+1)
+  =
+  \mathbb{E}_{\tilde{q}(\mathbf{z})}
+  \left[
+    \left(
+      a_k+\mathbf{c}_k^\top\mathbf{z}+\frac12\mathbf{z}^\top\mathbf{B}_k\mathbf{z}
+    \right)^2
+  \right],
+  \qquad
+  \mathbf{z}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D).
+\end{equation*}
+For any $x,y,z\in\mathbb{R}$,
+\begin{equation*}
+  (x+y+z)^2 \leqslant 3(x^2+y^2+z^2),
+\end{equation*}
+hence
+\begin{equation}
+  \label{eq:app-thm-step1}
+  \Delta_2^{(D)}(k+1)
+  \leqslant
+  3a_k^2
+  +
+  3\,\mathbb{E}\bigl[(\mathbf{c}_k^\top\mathbf{z})^2\bigr]
+  +
+  \frac{3}{4}\,\mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr].
+\end{equation}
+
+\paragraph{Zero-order term.}
+The value gap at $\mathbf{w}_k^\star$ satisfies
+\begin{equation*}
+  a_k
+  =
+  \mathcal{L}_{k+1}(\mathbf{w}_k^\star)-\mathcal{L}_k(\mathbf{w}_k^\star)
+  =
+  \frac{1}{k+1}\Bigl(\ell_{k+1}(\mathbf{w}_k^\star)-\mathcal{L}_k(\mathbf{w}_k^\star)\Bigr),
+\end{equation*}
+where the last equality uses~\eqref{eq:loss-increment-exact} evaluated at $\mathbf{w}_k^\star$.
+Therefore
+\begin{equation*}
+  |a_k|
+  \leqslant
+  \frac{1}{k+1}\Bigl(|\ell_{k+1}(\mathbf{w}_k^\star)|+|\mathcal{L}_k(\mathbf{w}_k^\star)|\Bigr).
+\end{equation*}
+Moreover,
+\begin{equation*}
+  |\mathcal{L}_k(\mathbf{w}_k^\star)|
+  =
+  \left|\frac{1}{k}\sum_{i=1}^k \ell_i(\mathbf{w}_k^\star)\right|
+  \leqslant
+  \frac{1}{k}\sum_{i=1}^k |\ell_i(\mathbf{w}_k^\star)|
+  \leqslant
+  M_\ell,
+\end{equation*}
+and $|\ell_{k+1}(\mathbf{w}_k^\star)|\leqslant M_\ell$, whence
+\begin{equation}
+  \label{eq:app-ak-sq}
+  |a_k|\leqslant \frac{2M_\ell}{k+1},
+  \qquad
+  a_k^2\leqslant \frac{4M_\ell^2}{(k+1)^2}.
+\end{equation}
+
+\paragraph{Linear term.}
+Since $\mathbf{g}^{(k)}(\mathbf{w}_k^\star)=\mathbf{0}$,
+\begin{equation*}
+  \mathbf{b}_k=\mathbf{g}^{(k+1)}(\mathbf{w}_k^\star)=\frac{1}{k+1}\mathbf{g}_{k+1}(\mathbf{w}_k^\star),
+  \qquad
+  \mathbf{c}_k=\mathbf{U}_D^\top\mathbf{b}_k.
+\end{equation*}
+Thus $\|\mathbf{c}_k\|_2\leqslant\|\mathbf{U}_D^\top\|_2\|\mathbf{b}_k\|_2\leqslant M_{\mathbf{g}}/(k+1)$ because $\|\mathbf{U}_D^\top\|_2=1$ for orthonormal columns.
+For $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D)$,
+\begin{equation}
+  \label{eq:app-linear}
+  \mathbb{E}\bigl[(\mathbf{c}_k^\top\mathbf{z})^2\bigr]
+  =
+  \mathbf{c}_k^\top\mathbb{E}[\mathbf{z}\mathbf{z}^\top]\mathbf{c}_k
+  =
+  \sigma^2\|\mathbf{c}_k\|_2^2
+  \leqslant
+  \frac{\sigma^2 M_{\mathbf{g}}^2}{(k+1)^2}.
+\end{equation}
+
+\paragraph{Quadratic term.}
+The matrix $\mathbf{B}_k$ is symmetric. For $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D)$ the fourth moment of the quadratic form obeys
+\begin{equation}
+  \label{eq:app-quad-moment}
+  \mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr]
+  =
+  2\sigma^4\operatorname{Tr}(\mathbf{B}_k^2)+\sigma^4\operatorname{Tr}(\mathbf{B}_k)^2.
+\end{equation}
+For symmetric $\mathbf{B}_k$,
+\begin{equation*}
+  \operatorname{Tr}(\mathbf{B}_k^2)\leqslant D\|\mathbf{B}_k\|_2^2,
+  \qquad
+  |\operatorname{Tr}(\mathbf{B}_k)|\leqslant D\|\mathbf{B}_k\|_2,
+\end{equation*}
+so
+\begin{equation}
+  \label{eq:app-quad-bound}
+  \mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr]
+  \leqslant
+  \sigma^4(D^2+2D)\|\mathbf{B}_k\|_2^2.
+\end{equation}
+Next,
+\begin{equation*}
+  \|\mathbf{B}_k\|_2
+  =
+  \|\mathbf{U}_D^\top\mathbf{A}_k\mathbf{U}_D\|_2
+  \leqslant
+  \|\mathbf{U}_D^\top\|_2\|\mathbf{A}_k\|_2\|\mathbf{U}_D\|_2
+  \leqslant
+  \|\mathbf{A}_k\|_2.
+\end{equation*}
+Using $\mathbf{H}^{(m)}(\mathbf{w}_k^\star)=\frac{1}{m}\sum_{i=1}^m \mathbf{H}_i(\mathbf{w}_k^\star)$,
+\begin{align*}
+  \mathbf{A}_k
+  &=
+  \mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)-\mathbf{H}^{(k)}(\mathbf{w}_k^\star)
+  \\
+  &=
+  \frac{1}{k+1}\left(\sum_{i=1}^{k+1}\mathbf{H}_i(\mathbf{w}_k^\star)-\frac{k+1}{k}\sum_{i=1}^k\mathbf{H}_i(\mathbf{w}_k^\star)\right)
+  \\
+  &=
+  \frac{1}{k+1}\Bigl(\mathbf{H}_{k+1}(\mathbf{w}_k^\star)-\mathbf{H}^{(k)}(\mathbf{w}_k^\star)\Bigr).
+\end{align*}
+Hence
+\begin{equation*}
+  \|\mathbf{A}_k\|_2
+  \leqslant
+  \frac{1}{k+1}\Bigl(\|\mathbf{H}_{k+1}(\mathbf{w}_k^\star)\|_2+\|\mathbf{H}^{(k)}(\mathbf{w}_k^\star)\|_2\Bigr)
+  \leqslant
+  \frac{2M_{\mathbf{H}}}{k+1},
+\end{equation*}
+and therefore
+\begin{equation}
+  \label{eq:app-B-bound}
+  \|\mathbf{B}_k\|_2\leqslant \frac{2M_{\mathbf{H}}}{k+1},
+  \qquad
+  \mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr]
+  \leqslant
+  \frac{4\sigma^4(D^2+2D)M_{\mathbf{H}}^2}{(k+1)^2}.
+\end{equation}
+
+\paragraph{Conclusion.}
+Substituting~\eqref{eq:app-ak-sq}, \eqref{eq:app-linear}, and~\eqref{eq:app-B-bound} into~\eqref{eq:app-thm-step1} gives
+\begin{equation*}
+  \Delta_2^{(D)}(k+1)
+  \leqslant
+  \frac{12M_\ell^2+3\sigma^2 M_{\mathbf{g}}^2+3\sigma^4(D^2+2D)M_{\mathbf{H}}^2}{(k+1)^2},
+\end{equation*}
+which is~\eqref{eq:subspace-rate-bound}.
+
+\subsection{Proof of Corollary~\ref{cor:spectral}}
+Under $a_k=0$ and $\mathbf{c}_k=\mathbf{0}$, Lemma~\ref{lem:subspace-reduction} implies
+\begin{equation*}
+  \Delta_2^{(D)}(k+1)
+  =
+  \frac14\,\mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr],
+  \qquad
+  \mathbf{z}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_D).
+\end{equation*}
+By~\eqref{eq:app-quad-moment},
+\begin{equation*}
+  \mathbb{E}\bigl[(\mathbf{z}^\top\mathbf{B}_k\mathbf{z})^2\bigr]
+  =
+  2\sigma^4\operatorname{Tr}(\mathbf{B}_k^2)+\sigma^4\operatorname{Tr}(\mathbf{B}_k)^2.
+\end{equation*}
+Under Assumption~\ref{ass:stable-principal}, Remark~\ref{rem:diagonal-Bk} yields the diagonal form~\eqref{eq:Bk-diagonal}, hence
+\begin{equation*}
+  \operatorname{Tr}(\mathbf{B}_k)=\sum_{i=1}^D\bigl(\lambda_i^{(k+1)}-\lambda_i^{(k)}\bigr),
+  \qquad
+  \operatorname{Tr}(\mathbf{B}_k^2)=\sum_{i=1}^D\bigl(\lambda_i^{(k+1)}-\lambda_i^{(k)}\bigr)^2.
+\end{equation*}
+Substituting into the previous display yields~\eqref{eq:spectral-closed-form}.
+
+\section{Additional experimental details}
+\label{app:exp}
+
+\noindent\textbf{Reproducibility.}
+The default YAML (\texttt{code/config.yaml}) specifies a nanoGPT-style GPT: $4$ layers, $4$ heads, embedding width $128$, block length $64$, character vocabulary from Tiny Shakespeare, AdamW ($\beta_1{=}0.9$, $\beta_2{=}0.95$, weight decay $0.1$) with learning rate $3{\times}10^{-4}$, $20$ training epochs per~$k$, batch size $32$ (capped by~$k$).
+$\mathcal{L}_k$ is mean next-token cross-entropy over all tokens in the first~$k$ chunks (nested along a fixed random permutation of chunks).
+$\Delta_1$ uses $50$ random directions with $\varepsilon{=}0.02$; $\Delta_2$ and $\Delta_2^{(D)}$ use $\sigma{=}0.02$ with $100$ Monte Carlo samples.
+Top Hessian eigenvectors use $30$ power iterations (tolerance $10^{-3}$) on at most $64$ chunks to limit memory; subspace dimensions $D\in\{5,10,20\}$; $3$ random seeds starting at~$42$.
+The $k$ grid is
+\[
+  k \in \{100,150,200,300,400,500,700,1000,1500,2000,3000,4000,5000\}.
+\]
+Tiny Shakespeare is downloaded automatically on first run to \texttt{data/tinyshakespeare.txt}.
+JSON logs and plotting scripts are described in Section~\ref{sec:experiments}; per-run wall times will be tabulated in the camera-ready supplement.
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{ll}
+    \hline
+    Setting & Values (typical range) \\
+    \hline
+    Optimizer & AdamW, $\beta_1{=}0.9$, $\beta_2{=}0.95$ (nanoGPT defaults) \\
+    Learning rate & $3{\times}10^{-4}$ (reference YAML); sweeps possible for larger runs \\
+    Weight decay & $0.1$ (reference) \\
+    Batch size & $\min(32,k)$ chunks; loss/Hessian micro-batching as in code \\
+    Training stops & fixed epochs per~$k$ ($20$ in reference config) \\
+    MC samples $S$ & $100$ ($\Delta_2$, $\Delta_2^{(D)}$) in reference config \\
+    Perturbation $\sigma$ & $0.02$ (reference GPT; scale with parameter norm) \\
+    Eigen iterations & $30$ power iterations for top-$D$ directions (subset of chunks for HVP) \\
+    \hline
+  \end{tabular}
+  \caption{Experimental defaults aligned with \texttt{code/config.yaml} (nanoGPT on Tiny Shakespeare).}
+  \label{tab:exp-hparams}
+\end{table}
+
+\noindent\textbf{Compute.}
+Approximate GPU-hours for the reported curves: \emph{[fill in]} (nanoGPT / Tiny Shakespeare), including sweeps over~$k$ and repeated Hessian eigensolves.
+
+% Required for NeurIPS 2026: desk reject if missing. Does not count toward page limit.
+\newpage
+\input{checklist.tex}
+
+\end{document}

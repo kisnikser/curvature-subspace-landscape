@@ -1,0 +1,5 @@
+# Experiments (code/)
+torch>=2.0
+omegaconf>=2.3
+numpy>=1.24
+matplotlib>=3.7

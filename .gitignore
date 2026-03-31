@@ -1,3 +1,17 @@
+# Custom
+.claude
+.cursor
+
+# Experiment outputs (reproducible from code/)
+output/
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
