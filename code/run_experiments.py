@@ -113,7 +113,7 @@ def default_text_path(conf) -> Path:
         "tiny_shakespeare": "tinyshakespeare.txt",
         "wikitext2": "wikitext2_train.txt",
     }.get(corpus_name, f"{corpus_name}.txt")
-    return _repo_root / "data" / filename
+    return _repo_root / "code" / "data" / filename
 
 
 def build_run_matrix(conf):

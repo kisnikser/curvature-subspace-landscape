@@ -36,7 +36,7 @@ Optional: `python code/plot_scaling_from_json.py /path/to/custom.json`
 - a `run_matrix` with named settings
 - reviewer-facing ablation controls (`sigma_values`, `main_subspace_dim`, `overlap_dims`)
 
-If `data.text_path` is null, the runner downloads the requested corpus to `data/`.
+If `data.text_path` is null, the runner downloads the requested corpus to `code/data/`.
 
 ## Layout
 
@@ -45,6 +45,7 @@ If `data.text_path` is null, the runner downloads the requested corpus to `data/
 | `run_experiments.py` | Training loops, Δ metrics, ablations, JSON export |
 | `plot_scaling_from_json.py` | Main and ablation figures from JSON |
 | `config.yaml` | Base config plus named run matrix |
+| `data/` | Versioned input corpora used by the run matrix |
 | `gpt/` | NanoGPT-style model |
 | `criteria.py`, `eigenvectors.py` | Loss increments and top Hessian directions |
 | `shared/` | Text data loading |

@@ -69,7 +69,7 @@ run_matrix:
     data:
       name: tiny_shakespeare_reference
       corpus_name: tiny_shakespeare
-      text_path: data/tinyshakespeare.txt
+      text_path: code/data/tinyshakespeare.txt
       stride: 64
       batch_size: 32
     model:
@@ -88,7 +88,7 @@ run_matrix:
     data:
       name: wikitext2_medium
       corpus_name: wikitext2
-      text_path: data/wikitext2_train.txt
+      text_path: code/data/wikitext2_train.txt
       stride: 128
       batch_size: 24
     model:
