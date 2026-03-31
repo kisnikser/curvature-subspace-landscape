@@ -1,4 +1,4 @@
-"""Character-level text chunks for causal LM (Tiny Shakespeare by default)."""
+"""Character-level text chunks for causal LM corpora."""
 
 from __future__ import annotations
 
@@ -9,18 +9,40 @@ import torch
 from torch.utils.data import Dataset
 
 
-TINY_SHAKESPEARE_URL = (
-    "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-)
+CORPUS_URLS = {
+    "tiny_shakespeare": (
+        "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/"
+        "tinyshakespeare/input.txt"
+    ),
+    "wikitext2": (
+        "https://raw.githubusercontent.com/pytorch/examples/main/"
+        "word_language_model/data/wikitext-2/train.txt"
+    ),
+}
+
+
+def ensure_text_corpus(
+    dest: Path,
+    corpus_name: str = "tiny_shakespeare",
+    url_override: str | None = None,
+) -> Path:
+    """Download a supported UTF-8 corpus if missing; return the local path."""
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    url = url_override or CORPUS_URLS.get(corpus_name)
+    if url is None:
+        raise ValueError(
+            f"Unknown corpus_name={corpus_name!r}. "
+            f"Known corpora: {sorted(CORPUS_URLS)}"
+        )
+    if not dest.is_file():
+        urllib.request.urlretrieve(url, dest)
+    return dest
 
 
 def ensure_tiny_shakespeare(dest: Path) -> Path:
-    """Download Karpathy Tiny Shakespeare if missing; return path to UTF-8 text."""
-    dest = Path(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if not dest.is_file():
-        urllib.request.urlretrieve(TINY_SHAKESPEARE_URL, dest)
-    return dest
+    """Backward-compatible wrapper for the default reference corpus."""
+    return ensure_text_corpus(dest, corpus_name="tiny_shakespeare")
 
 
 def build_char_vocab(text: str) -> tuple[dict[str, int], list[str]]:

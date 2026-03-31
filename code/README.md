@@ -1,6 +1,8 @@
 # Code
 
-PyTorch utilities for landscape increment metrics (Δ₁, Δ₂, Δ₂⁽ᴰ⁾) on a small GPT-style LM, plus plotting for the paper.
+PyTorch utilities for landscape increment metrics (`Δ₁`, `Δ₂`, `Δ₂⁽ᴰ⁾`) on
+NanoGPT-style causal language models, plus plotting and reviewer-facing
+diagnostics for the paper.
 
 ## Setup
 
@@ -21,22 +23,44 @@ python code/run_experiments.py
 python code/plot_scaling_from_json.py
 ```
 
-- **JSON** is written to `output/landscape/landscape_experiments.json` (path from `config.yaml` → `common.output_dir`).
-- **Scaling PDFs** are written to `paper/figures/` for inclusion in `main.tex`.
+- **JSON** is written to `code/output/landscape/landscape_experiments.json` (path from `config.yaml` → `common.output_dir`).
+- **Primary and ablation PDFs** are written to `paper/figures/` for inclusion in `main.tex`.
 
 Optional: `python code/plot_scaling_from_json.py /path/to/custom.json`
 
 ## Config
 
-`config.yaml` — model size, data path, sample sizes `k`, subspace dimensions `D`, seeds, and optimizer settings. If `data.text_path` is null, Tiny Shakespeare is downloaded under `data/tinyshakespeare.txt` when needed.
+`config.yaml` now contains:
+
+- a shared base configuration
+- a `run_matrix` with named settings
+- reviewer-facing ablation controls (`sigma_values`, `main_subspace_dim`, `overlap_dims`)
+
+If `data.text_path` is null, the runner downloads the requested corpus to `data/`.
 
 ## Layout
 
 | File / dir | Role |
 |------------|------|
-| `run_experiments.py` | Training loops, Δ metrics, JSON export |
-| `plot_scaling_from_json.py` | Log–log figures from JSON |
-| `config.yaml` | Experiment hyperparameters |
+| `run_experiments.py` | Training loops, Δ metrics, ablations, JSON export |
+| `plot_scaling_from_json.py` | Main and ablation figures from JSON |
+| `config.yaml` | Base config plus named run matrix |
 | `gpt/` | NanoGPT-style model |
 | `criteria.py`, `eigenvectors.py` | Loss increments and top Hessian directions |
 | `shared/` | Text data loading |
+
+## Current Program
+
+The default run matrix includes:
+
+- `tiny_shakespeare_reference` for clean proof-of-concept scaling curves
+- `wikitext2_medium` as a stronger validation setting
+
+The JSON log stores:
+
+- seed-aggregatable `Δ₁`, `Δ₂`, `Δ₂⁽ᴰ⁾`
+- sigma sweeps
+- Hessian vs random subspace comparisons
+- recomputed vs frozen subspace comparisons
+- eigenspace drift metrics
+- quadratic-proxy alignment diagnostics

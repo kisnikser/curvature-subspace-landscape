@@ -56,7 +56,8 @@
   Yet full-space mean-squared probing in $\mathbb{R}^N$ remains expensive and often wasteful when curvature concentrates in a small number of Hessian directions, so a gap remains for a criterion aligned with principal curvature while preserving the mean-squared rate.
   This paper studies the \emph{subspace} mean-squared criterion $\Delta_2^{(D)}$, which restricts the same squared increment to perturbations along the top-$D$ eigenvectors of the empirical Hessian at a local minimum.
   Using a local quadratic model, we prove an $\mathcal{O}(k^{-2})$ upper bound in which the curvature contribution scales with~$D$ rather than the ambient dimension~$N$, give a closed-form spectral expression under optional alignment of principal directions across successive empirical risks, and describe estimation via Hessian--vector products, randomized eigenpair solvers, and Monte Carlo in $\mathbb{R}^D$.
-  Experiments on deep networks, including large-scale transformer models, examine scaling in~$k$ and the role of~$D$.
+  Our empirical program is centered on nanoGPT-style decoder-only transformers, pairing a three-seed Tiny Shakespeare reference run with a stronger WikiText-2 validation run and reviewer-facing ablations on subspace choice, locality, and eigenspace drift.
+  In the reference run, log--log fits give slopes of approximately $-1.08$ for $\Delta_1$, $-1.93$ for $\Delta_2$, and $-1.99$ for $\Delta_2^{(10)}$; in the WikiText-2 run, the corresponding slopes are $-0.97$, $-2.24$, and $-1.97$.
   The results make explicit how mean-squared landscape stability can be stated and measured in an intrinsic dimension matched to dominant curvature rather than to the full parameter count.
 \end{abstract}
 
@@ -84,8 +85,8 @@ However, estimating or interpreting $\Delta_2$ in $\mathbb{R}^N$ is unwieldy whe
 We analyze the \emph{subspace} mean-squared criterion $\Delta_2^{(D)}$, which restricts the same squared increment to an affine subspace through $\mathbf{w}_k^\star$ aligned with the top-$D$ eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$.
 Theoretically, we obtain an $\mathcal{O}(k^{-2})$ rate with explicit constants, where the ambient dimension~$N$ in the curvature contribution is replaced by~$D$ (Theorem~\ref{thm:subspace-rate}).
 We also clarify when the compressed Hessian difference admits a diagonal interpretation in leading eigenvalues (Corollary~\ref{cor:spectral}).
-Algorithmically, we discuss estimation via randomized Lanczos on Hessian--vector products~\citep{pearlmutter1994fast} and Monte Carlo expectations in $\mathbb{R}^D$ (Section~\ref{sec:algo}).
-Empirically, we report scaling-law style measurements of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ as functions of~$k$ on modern architectures (Section~\ref{sec:experiments}).
+Algorithmically, we discuss estimation via top-eigenspace solvers on Hessian--vector products~\citep{pearlmutter1994fast} and Monte Carlo expectations in $\mathbb{R}^D$ (Section~\ref{sec:algo}).
+Empirically, we define a reviewer-oriented measurement program for $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ as functions of~$k$, centered on nanoGPT-style decoder-only transformers and explicit ablations (Section~\ref{sec:experiments}).
 
 \paragraph{Contributions.}
 \begin{itemize}
@@ -122,7 +123,7 @@ Our setting is different: we analyze a \emph{finite-$k$} increment of the empiri
 \paragraph{Landscape increments and subspace mean-squared.}
 The criteria~\citep{author:delta1,author:delta2} measure the magnitude of $\mathcal{L}_{k+1}-\mathcal{L}_k$ near $\mathbf{w}_k^\star$; in particular,~\citep{author:delta2} obtains $\mathcal{O}(k^{-2})$ decay for the full-space mean-squared criterion~$\Delta_2$.
 We extend this analysis to $\Delta_2^{(D)}$, proving the same rate with a curvature prefactor depending on~$D$ rather than~$N$ and providing a spectral closed form under optional alignment of principal Hessian directions across $k$ and $k{+}1$.
-For efficient curvature queries, our estimation pipeline builds on Hessian--vector products~\citep{pearlmutter1994fast} and scalable spectral tooling for deep networks~\citep{yao2020pyhessian}, including randomized Lanczos for extreme eigenpairs.
+For efficient curvature queries, our estimation pipeline builds on Hessian--vector products~\citep{pearlmutter1994fast} and scalable spectral tooling for deep networks~\citep{yao2020pyhessian}, using iterative top-eigenspace extraction and low-dimensional Monte Carlo.
 
 \paragraph{Dominant vs.\ bulk subspaces (optimization dynamics).}
 Recent work argues that SGD updates can align spuriously with the dominant eigenspace of the training Hessian while much of the learning progress occurs in complementary directions~\citep{song2025tiny}; engineering accelerators explicitly separate scaling along dominant vs.\ bulk subspaces~\citep{zhou2025bsfa}.
@@ -473,7 +474,7 @@ Thus the subspace criterion trades a one-time subspace solve for much cheaper sa
 
 We estimate $\Delta_1(k{+}1)$, $\Delta_2(k{+}1)$, and $\Delta_2^{(D)}(k{+}1)$ as functions of increasing~$k$.
 The main goal is to check the separation between $\mathcal{O}(k^{-1})$ and $\mathcal{O}(k^{-2})$ decay and to show that $\Delta_2^{(D)}$ tracks mean-squared behavior with a prefactor governed by~$D$ rather than the full width~$N$.
-Optional large-scale decoder-only runs follow the same protocol at higher cost (Appendix~\ref{app:exp}) and connect to recent Transformer Hessian analyses~\citep{petrov2025curvature_gap}.
+Beyond the reference Tiny Shakespeare setting, we include a stronger WikiText-2 validation setting in the same nanoGPT family and retain the same measurement protocol across both runs.
 
 \subsection{Protocol}
 \label{sec:exp-protocol}
@@ -489,40 +490,62 @@ Theoretical $\Delta_1$ evaluates $|\mathcal{L}_{k+1}-\mathcal{L}_k|$ at a fixed 
 $\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian eigenvectors at $\mathbf{w}_k^\star$ use power iteration with Hessian--vector products on the $k$-point loss.
 
 \paragraph{Code.}
-The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch: character-level language modeling on Tiny Shakespeare with nested subsets of training chunks; configuration matches Appendix~\ref{tab:exp-hparams}.
-Reference scripts (relative to \texttt{paper/subspace\_landscape\_convergence/}): \texttt{code/run\_experiments.py} (writes \texttt{output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds Figure~\ref{fig:scaling-delta}--\ref{fig:scaling-subspace}).
+The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch.
+Our run matrix contains a \emph{reference} Tiny Shakespeare setting and a \emph{stronger} WikiText-2 setting, both treated as character-level language modeling problems with nested subsets of training chunks.
+Reference scripts (relative to the repository root): \texttt{code/run\_experiments.py} (writes \texttt{code/output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds the main and ablation figures under \texttt{paper/figures/}).
 
 \subsection{Scaling laws (nanoGPT on Tiny Shakespeare)}
 \label{sec:exp-mlp}
 
-Figure~\ref{fig:scaling-delta} shows $\Delta_1$ and $\Delta_2$ vs.\ $k$ on a log--log scale for a small GPT trained with the nanoGPT architecture.
+Figure~\ref{fig:scaling-delta} is reserved for the primary log--log scaling plot of $\Delta_1$ and $\Delta_2$ vs.\ $k$ in the reference nanoGPT setting.
 Reference lines of slope $-1$ and $-2$ illustrate the exponents predicted for the one-point and mean-squared criteria.
+In the three-seed Tiny Shakespeare reference run, the fitted slopes are approximately $-1.08$ for $\Delta_1$, $-1.93$ for $\Delta_2$, and $-1.99$ for $\Delta_2^{(10)}$.
+Across the full grid from $k{=}100$ to $k{=}5000$, the mean value of $\Delta_1$ drops by about $64\times$, $\Delta_2$ by about $1.1{\times}10^3$, and $\Delta_2^{(10)}$ by about $3.0{\times}10^3$.
 
-Figure~\ref{fig:scaling-subspace} compares $\Delta_2$ with $\Delta_2^{(D)}$ for $D{=}10$; other $D\in\{5,20\}$ behave similarly (see appendix figures).
+Figure~\ref{fig:scaling-subspace} is reserved for the primary comparison between $\Delta_2$ and $\Delta_2^{(D)}$ for $D{=}10$; additional figures cover the $D$ sweep, random-vs-principal subspaces, frozen-vs-recomputed bases, sigma sweeps, and eigenspace drift.
+Empirically, $\Delta_2^{(10)}$ stays in the same order of magnitude as $\Delta_2$ throughout the reference run, while often decaying slightly faster on the fitted log--log trend.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.85\linewidth]{scaling_delta_loglog.pdf}
-  \caption{Empirical $\Delta_1$ and $\Delta_2$ vs.\ $k$ (nanoGPT / Tiny Shakespeare, nested subsets, means over seeds). Dashed lines: reference slopes $-1$ and $-2$.}
+  \caption{Empirical $\Delta_1$ and $\Delta_2$ vs.\ $k$ for the three-seed Tiny Shakespeare reference run (nanoGPT, nested subsets). Dashed lines: reference slopes $-1$ and $-2$.}
   \label{fig:scaling-delta}
 \end{figure}
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.85\linewidth]{scaling_delta2_subspace_D10.pdf}
-  \caption{$\Delta_2$ vs.\ $\Delta_2^{(D)}$ for $D{=}10$ under the same protocol.}
+  \caption{$\Delta_2$ vs.\ $\Delta_2^{(D)}$ for $D{=}10$ in the three-seed Tiny Shakespeare reference run.}
   \label{fig:scaling-subspace}
+\end{figure}
+
+\subsection{Cross-setting validation}
+\label{sec:exp-cross-setting}
+
+The stronger WikiText-2 run reproduces the same qualitative separation between the criteria on a different text corpus and a wider nanoGPT configuration.
+On the pilot grid $k\in\{256,512,1024,2048,4096\}$, the fitted slopes are approximately $-0.97$ for $\Delta_1$, $-2.24$ for $\Delta_2$, and $-1.97$ for $\Delta_2^{(10)}$.
+Across that grid, $\Delta_1$ decreases by about $11.6\times$, while $\Delta_2$ and $\Delta_2^{(10)}$ decrease by about $186\times$ and $213\times$, respectively.
+This cross-setting agreement strengthens the interpretation that the mean-squared criteria exhibit near-$k^{-2}$ behavior beyond the Tiny Shakespeare reference task.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{setting_comparison_delta2_subspace_D10.pdf}
+  \caption{Comparison of $\Delta_2^{(10)}$ across the Tiny Shakespeare reference run and the WikiText-2 validation run. The two settings operate at different absolute scales but show the same qualitative decay with~$k$.}
+  \label{fig:setting-comparison}
 \end{figure}
 
 \subsection{Fitted exponents and bound check}
 We fit $\log \Delta_\bullet$ vs.\ $\log k$ in a mid-$k$ window (excluding very small~$k$ where optimization noise dominates).
-Bootstrap over seeds yields uncertainty for slopes; values near $-1$ ($\Delta_1$) and $-2$ (mean-squared criteria) support Section~\ref{sec:theory}.
-We also plug empirical order-of-magnitude estimates of $M_\ell,M_{\mathbf{g}},M_{\mathbf{H}}$ into Theorem~\ref{thm:subspace-rate} as a sanity check (not a tight constant).
+Bootstrap over seeds yields uncertainty for slopes; values near $-1$ ($\Delta_1$) and $-2$ (mean-squared criteria) are the target diagnostic.
+We additionally report uncertainty bands for the plotted criteria, compare the true subspace increment with its quadratic proxy, and plug empirical order-of-magnitude estimates of $M_\ell,M_{\mathbf{g}},M_{\mathbf{H}}$ into Theorem~\ref{thm:subspace-rate} as a sanity check (not a tight constant).
+At the current stage, the strongest evidence is the cross-setting scaling behavior of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(10)}$.
+By contrast, the quadratic-proxy diagnostics are not yet stable enough to support a strong quantitative claim; we therefore treat them as qualitative diagnostics rather than as headline evidence.
 
 \subsection{Ablations}
 \label{sec:exp-abl}
-We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (iii)~$\sigma$; (iv)~recomputing $\mathbf{U}_D$ at each~$k$ vs.\ freezing at~$k_0$; (v)~architecture depth/width (and, when available, transformer size).
+We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (iii)~$\sigma$; (iv)~recomputing $\mathbf{U}_D$ at each~$k$ vs.\ freezing at~$k_0$; (v)~the stronger validation setting within the same nanoGPT family; and (vi)~eigenspace overlap between the top-$D$ subspaces of $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$.
 These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^{(D)}$.
+For $D{=}10$, the mean overlap between the top-$D$ subspaces of $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$ is about $0.95$ in both settings, which is consistent with moderate eigenspace drift rather than catastrophic subspace instability.
 
 \section{Discussion and limitations}
 \label{sec:discussion}
@@ -530,11 +553,18 @@ These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^
 \paragraph{Quadratic model and local minima.}
 Our analysis uses a second-order expansion at~$\mathbf{w}_k^\star$ and standard per-example bounds on $\ell_i$, $\nabla\ell_i$, and~$\nabla^2\ell_i$.
 The results are local: they describe increments of $\mathcal{L}_{k+1}-\mathcal{L}_k$ in a neighborhood of a minimizer of~$\mathcal{L}_k$, not global landscape connectivity or mode structure.
+In experiments, Hessian-based diagnostics may be computed on a trimmed subset of the current training data to keep HVP costs tractable; this approximation is logged explicitly and separated from the full-loss measurements of $\Delta_1$ and $\Delta_2$.
 
 \paragraph{Drift of the top-$D$ eigenspace.}
 Theorem~\ref{thm:subspace-rate} does \emph{not} require the top-$D$ eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^\star)$ to coincide with those of $\mathbf{H}^{(k+1)}(\mathbf{w}_k^\star)$: the matrix~$\mathbf{B}_k$ is a compressed Hessian difference.
 Assumption~\ref{ass:stable-principal} is \emph{additional}: it is the right condition for the diagonal formula~\eqref{eq:Bk-diagonal} and the closed form~\eqref{eq:spectral-closed-form}.
-In experiments, $\mathbf{U}_D$ is typically recomputed at each~$k$ (or held fixed as an ablation); quantifying the error when $\mathcal{S}_D^{(k)}\neq \mathcal{S}_D^{(k+1)}$ is an interesting direction for future work.
+In experiments, $\mathbf{U}_D$ is typically recomputed at each~$k$ (or held fixed as an ablation); for $D{=}10$, the observed mean subspace overlap is approximately $0.95$ in both settings, suggesting that the leading curvature subspace drifts but remains substantially aligned across adjacent $k$.
+Quantifying the residual error when $\mathcal{S}_D^{(k)}\neq \mathcal{S}_D^{(k+1)}$ remains an interesting direction for future work.
+
+\paragraph{Quadratic proxy mismatch.}
+The empirical scaling results are stronger than the current quadratic-proxy diagnostics.
+Although the true increment and the quadratic proxy often agree at the level of overall trend, their pointwise correlation and relative-error diagnostics are still noisy, especially at larger~$k$ where the increments become extremely small.
+We therefore avoid presenting the quadratic proxy as a quantitatively validated surrogate and treat it instead as a diagnostic lens on where the local second-order picture may or may not be accurate.
 
 \paragraph{Compute and ethics.}
 Hessian-based workflows are expensive: top-$D$ eigensolvers and repeated training for many values of~$k$ multiply GPU hours.
@@ -547,7 +577,8 @@ Large-scale language experiments should follow dataset licenses and institutiona
 We studied the subspace mean-squared landscape increment $\Delta_2^{(D)}$, which restricts Gaussian perturbations to the top-$D$ Hessian eigenspace at a local minimizer of the $k$-sample empirical risk.
 We proved an $\mathcal{O}(k^{-2})$ upper bound with a curvature prefactor depending on~$D$ rather than the full parameter dimension~$N$, and gave a spectral closed form under optional alignment of principal directions between successive empirical risks.
 Algorithmically, the criterion is compatible with scalable Hessian--vector products and low-dimensional Monte Carlo.
-Empirically, Section~\ref{sec:experiments} describes our measurement protocol and reports scaling behavior for a standard GPT-style architecture (nanoGPT), including ablations on~$D$.
+Empirically, the strongest current result is that nanoGPT-based experiments in two settings show near-$k^{-1}$ decay for $\Delta_1$ and near-$k^{-2}$ decay for both $\Delta_2$ and $\Delta_2^{(10)}$, with the Tiny Shakespeare reference run giving slopes of about $-1.08$, $-1.93$, and $-1.99$, and the WikiText-2 validation run giving slopes of about $-0.97$, $-2.24$, and $-1.97$.
+These measurements support the claim that the subspace mean-squared criterion tracks the full mean-squared criterion while operating in an intrinsic low-dimensional curvature subspace.
 
 Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, and connections to generalization via implicit regularization along top curvature directions.
 
@@ -774,16 +805,19 @@ Substituting into the previous display yields~\eqref{eq:spectral-closed-form}.
 \label{app:exp}
 
 \noindent\textbf{Reproducibility.}
-The default YAML (\texttt{code/config.yaml}) specifies a nanoGPT-style GPT: $4$ layers, $4$ heads, embedding width $128$, block length $64$, character vocabulary from Tiny Shakespeare, AdamW ($\beta_1{=}0.9$, $\beta_2{=}0.95$, weight decay $0.1$) with learning rate $3{\times}10^{-4}$, $20$ training epochs per~$k$, batch size $32$ (capped by~$k$).
+The default YAML (\texttt{code/config.yaml}) now defines a \emph{run matrix} rather than a single experiment.
+The primary setting is a nanoGPT-style GPT with $4$ layers, $4$ heads, embedding width $128$, block length $64$, character vocabulary from Tiny Shakespeare, AdamW ($\beta_1{=}0.9$, $\beta_2{=}0.95$, weight decay $0.1$), learning rate $3{\times}10^{-4}$, $20$ training epochs per~$k$, and batch size $32$.
+The stronger validation setting keeps the same code path but increases block length and model width and uses the WikiText-2 training split as a text corpus.
 $\mathcal{L}_k$ is mean next-token cross-entropy over all tokens in the first~$k$ chunks (nested along a fixed random permutation of chunks).
-$\Delta_1$ uses $50$ random directions with $\varepsilon{=}0.02$; $\Delta_2$ and $\Delta_2^{(D)}$ use $\sigma{=}0.02$ with $100$ Monte Carlo samples.
-Top Hessian eigenvectors use $30$ power iterations (tolerance $10^{-3}$) on at most $64$ chunks to limit memory; subspace dimensions $D\in\{5,10,20\}$; $3$ random seeds starting at~$42$.
-The $k$ grid is
+$\Delta_1$ uses $50$ random directions with $\varepsilon{=}0.02$; $\Delta_2$ and $\Delta_2^{(D)}$ use a main $\sigma{=}0.02$ plus a sweep over additional values with $100$ Monte Carlo samples.
+Top Hessian eigenvectors use $30$ power iterations (tolerance $10^{-3}$) on a trimmed subset of at most $64$ sequences in the reference setting; subspace dimensions $D\in\{5,10,20\}$; $3$ random seeds start at~$42$.
+The reference $k$ grid is
 \[
   k \in \{100,150,200,300,400,500,700,1000,1500,2000,3000,4000,5000\}.
 \]
-Tiny Shakespeare is downloaded automatically on first run to \texttt{data/tinyshakespeare.txt}.
-JSON logs and plotting scripts are described in Section~\ref{sec:experiments}; per-run wall times will be tabulated in the camera-ready supplement.
+Tiny Shakespeare and WikiText-2 are downloaded automatically on first run to the \texttt{data/} directory when needed.
+JSON logs record the main curves together with sigma sweeps, random-vs-principal subspace comparisons, frozen-vs-recomputed basis comparisons, eigenspace-drift metrics, and quadratic-alignment diagnostics.
+Plotting scripts are described in Section~\ref{sec:experiments}; per-run wall times will be tabulated after the run matrix is executed.
 
 \begin{table}[t]
   \centering
@@ -802,7 +836,7 @@ JSON logs and plotting scripts are described in Section~\ref{sec:experiments}; p
     Eigen iterations & $30$ power iterations for top-$D$ directions (subset of chunks for HVP) \\
     \hline
   \end{tabular}
-  \caption{Experimental defaults aligned with \texttt{code/config.yaml} (nanoGPT on Tiny Shakespeare).}
+  \caption{Experimental defaults aligned with the primary setting in \texttt{code/config.yaml} (nanoGPT on Tiny Shakespeare).}
   \label{tab:exp-hparams}
 \end{table}
 

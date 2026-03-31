@@ -4,6 +4,7 @@
 
 # Experiment outputs (reproducible from code/)
 output/
+code/output/
 *.aux
 *.bbl
 *.blg

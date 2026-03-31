@@ -24,6 +24,19 @@ def _set_flat_params(model, flat_params):
             idx += numel
 
 
+def _summarize_samples(values: list[float]) -> dict[str, float]:
+    tensor = torch.tensor(values, dtype=torch.float64)
+    mean = tensor.mean().item() if values else 0.0
+    std = tensor.std(unbiased=True).item() if len(values) > 1 else 0.0
+    stderr = std / (len(values) ** 0.5) if values else 0.0
+    return {
+        "mean": mean,
+        "std": std,
+        "stderr": stderr,
+        "num_samples": len(values),
+    }
+
+
 def compute_loss(model, x, y, microbatch: int = 512):
     """
     Mean cross-entropy over all tokens (causal LM).
@@ -37,7 +50,6 @@ def compute_loss(model, x, y, microbatch: int = 512):
             return F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)), y.reshape(-1)
             ).item()
-        v = x.size(-1)
         total, ntok = 0.0, 0
         for s in range(0, b, microbatch):
             xb = x[s : s + microbatch]
@@ -49,6 +61,13 @@ def compute_loss(model, x, y, microbatch: int = 512):
             total += part.item()
             ntok += xb.numel()
         return total / ntok
+
+
+def compute_increment(model, x_k, y_k, x_k1, y_k1, microbatch: int = 512) -> float:
+    """Return L_{k+1}(w) - L_k(w) at the model's current parameters."""
+    loss_k = compute_loss(model, x_k, y_k, microbatch=microbatch)
+    loss_k1 = compute_loss(model, x_k1, y_k1, microbatch=microbatch)
+    return loss_k1 - loss_k
 
 
 def compute_delta1(
@@ -63,6 +82,7 @@ def compute_delta1(
     device,
     dtype,
     microbatch: int = 512,
+    return_details: bool = False,
 ):
     """
     Compute absolute one-point criterion Delta_1.
@@ -84,7 +104,7 @@ def compute_delta1(
         delta1: estimated Delta_1 value
     """
     dim = w_k.shape[0]
-    total_diff = 0.0
+    diffs = []
     
     for _ in range(num_directions):
         d = torch.randn(dim, device=device, dtype=dtype)
@@ -93,14 +113,15 @@ def compute_delta1(
         w_perturbed = w_k + eps * d
         _set_flat_params(model, w_perturbed)
         
-        loss_k = compute_loss(model, x_k, y_k, microbatch=microbatch)
-        loss_k1 = compute_loss(model, x_k1, y_k1, microbatch=microbatch)
-    
-        total_diff += abs(loss_k1 - loss_k)
+        diff = abs(compute_increment(model, x_k, y_k, x_k1, y_k1, microbatch=microbatch))
+        diffs.append(diff)
     
     _set_flat_params(model, w_k)
     
-    return total_diff / num_directions
+    stats = _summarize_samples(diffs)
+    if return_details:
+        return stats
+    return stats["mean"]
 
 
 def compute_delta2(
@@ -115,6 +136,7 @@ def compute_delta2(
     device,
     dtype,
     microbatch: int = 512,
+    return_details: bool = False,
 ):
     """
     Compute mean-squared criterion Delta_2.
@@ -136,21 +158,22 @@ def compute_delta2(
         delta2: estimated Delta_2 value
     """
     dim = w_k.shape[0]
-    total_sq_diff = 0.0
+    sq_diffs = []
     
     for _ in range(num_samples):
         noise = torch.randn(dim, device=device, dtype=dtype) * sigma
         w_sample = w_k + noise
         _set_flat_params(model, w_sample)
         
-        loss_k = compute_loss(model, x_k, y_k, microbatch=microbatch)
-        loss_k1 = compute_loss(model, x_k1, y_k1, microbatch=microbatch)
-    
-        total_sq_diff += (loss_k1 - loss_k) ** 2
+        diff = compute_increment(model, x_k, y_k, x_k1, y_k1, microbatch=microbatch)
+        sq_diffs.append(diff ** 2)
     
     _set_flat_params(model, w_k)
     
-    return total_sq_diff / num_samples
+    stats = _summarize_samples(sq_diffs)
+    if return_details:
+        return stats
+    return stats["mean"]
 
 
 def compute_delta2_subspace(
@@ -166,6 +189,7 @@ def compute_delta2_subspace(
     device,
     dtype,
     microbatch: int = 512,
+    return_details: bool = False,
 ):
     """
     Compute mean-squared criterion in principal curvature subspace Delta_2^(D).
@@ -188,18 +212,58 @@ def compute_delta2_subspace(
         delta2_D: estimated Delta_2^(D) value
     """
     D = U_D.shape[1]
-    total_sq_diff = 0.0
+    sq_diffs = []
     
     for _ in range(num_samples):
         z = torch.randn(D, device=device, dtype=dtype) * sigma
         w_sample = w_k + U_D @ z
         _set_flat_params(model, w_sample)
         
-        loss_k = compute_loss(model, x_k, y_k, microbatch=microbatch)
-        loss_k1 = compute_loss(model, x_k1, y_k1, microbatch=microbatch)
-    
-        total_sq_diff += (loss_k1 - loss_k) ** 2
+        diff = compute_increment(model, x_k, y_k, x_k1, y_k1, microbatch=microbatch)
+        sq_diffs.append(diff ** 2)
     
     _set_flat_params(model, w_k)
     
-    return total_sq_diff / num_samples
+    stats = _summarize_samples(sq_diffs)
+    if return_details:
+        return stats
+    return stats["mean"]
+
+
+def quadratic_form_expectation(
+    a_k: float,
+    c_k: torch.Tensor,
+    B_k: torch.Tensor,
+    num_samples: int,
+    sigma: float,
+    device,
+    dtype,
+) -> dict[str, float]:
+    """
+    Monte Carlo diagnostics for the quadratic subspace approximation.
+
+    Returns the component energies and the total quadratic expectation under
+    z ~ N(0, sigma^2 I).
+    """
+    D = c_k.numel()
+    value_terms = []
+    linear_terms = []
+    curvature_terms = []
+    totals = []
+
+    for _ in range(num_samples):
+        z = torch.randn(D, device=device, dtype=dtype) * sigma
+        linear = torch.dot(c_k, z)
+        curvature = 0.5 * torch.dot(z, B_k @ z)
+        total = a_k + linear + curvature
+        value_terms.append(float(a_k ** 2))
+        linear_terms.append(float(linear.item() ** 2))
+        curvature_terms.append(float(curvature.item() ** 2))
+        totals.append(float(total.item() ** 2))
+
+    return {
+        "value_gap_sq": _summarize_samples(value_terms)["mean"],
+        "linear_energy": _summarize_samples(linear_terms)["mean"],
+        "curvature_energy": _summarize_samples(curvature_terms)["mean"],
+        "quadratic_total": _summarize_samples(totals)["mean"],
+    }
