@@ -13,6 +13,9 @@ Figures referenced in main.tex:
   eigenspace_drift.pdf                        — overlap between top-D subspaces at k and k+1
   quadratic_alignment.pdf                     — true increment vs quadratic proxy
   setting_comparison_delta2_subspace_D10.pdf  — primary vs stronger validation setting
+  sufficiency_metrics_pilot.pdf               — pilot metric comparison for criterion-specific LSTMs
+  sufficiency_predictions_pilot.pdf           — pilot sufficiency probability and predicted k* curves
+  sufficiency_metrics_pilot_table.tex         — LaTeX table snippet for the pilot sufficiency metrics
 
 Additional settings (for example `wikitext2_medium`) use the same filenames with
 an added suffix, e.g. `scaling_delta_loglog_wikitext2_medium.pdf`.
@@ -21,5 +24,7 @@ Regenerate scaling PDFs from the repo root:
 
   python code/run_experiments.py
   python code/plot_scaling_from_json.py
+  python code/train_sufficiency_module.py
+  python code/plot_sufficiency_results.py
 
 Outputs land in this directory. Until then, placeholder PDFs may be used so the paper compiles.

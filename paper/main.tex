@@ -33,6 +33,7 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}
 
@@ -493,6 +494,7 @@ $\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian e
 The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch.
 Our run matrix contains a \emph{reference} Tiny Shakespeare setting and a \emph{stronger} WikiText-2 setting, both treated as character-level language modeling problems with nested subsets of training chunks.
 Reference scripts (relative to the repository root): \texttt{code/run\_experiments.py} (writes \texttt{code/output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds the main and ablation figures under \texttt{paper/figures/}).
+For the predictive sufficiency extension below, the same runner can optionally reserve a fixed validation pool and log validation loss at each~$k$.
 
 \subsection{Scaling laws (nanoGPT on Tiny Shakespeare)}
 \label{sec:exp-mlp}
@@ -547,6 +549,161 @@ We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (i
 These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^{(D)}$.
 For $D{=}10$, the mean overlap between the top-$D$ subspaces of $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$ is about $0.95$ in both settings, which is consistent with moderate eigenspace drift rather than catastrophic subspace instability.
 
+\subsection{Next-stage protocol: predicting sample sufficiency}
+\label{sec:exp-sufficiency-protocol}
+Having established criterion-specific scaling curves, the next experimental stage turns the same nested-$k$ trajectories into a prediction problem: given the recent history of a landscape criterion at sample size~$k$, can one decide whether more data will still produce a meaningful improvement?
+
+\begin{definition}[Sample-sufficiency target]
+  Fix a run with nested training sets $\mathcal{D}_{k_1}\subset\cdots\subset\mathcal{D}_{k_T}$, corresponding minimizers $\mathbf{w}_{k_t}^\star$, and a held-out validation set $\mathcal{V}$ that is disjoint from all $\mathcal{D}_{k_t}$.
+  Let
+  \begin{equation}
+    \mathcal{L}_{\mathrm{val}}(\mathbf{w})
+    =
+    \frac{1}{|\mathcal{V}|}
+    \sum_{(x,y)\in\mathcal{V}}
+    \ell(\mathbf{w};x,y)
+  \end{equation}
+  denote the validation risk.
+  For $\varepsilon>0$, define the residual validation gain at~$k_t$ by
+  \begin{equation}
+    G_{k_t}^{(\mathrm{val})}
+    =
+    \mathcal{L}_{\mathrm{val}}(\mathbf{w}_{k_t}^\star)
+    -
+    \mathcal{L}_{\mathrm{val}}(\mathbf{w}_{k_T}^\star),
+  \end{equation}
+  the binary sufficiency label by
+  \begin{equation}
+    y_{k_t}^{(\varepsilon)}
+    =
+    \mathbf{1}\!\left\{
+      G_{k_t}^{(\mathrm{val})}\leqslant\varepsilon
+    \right\},
+  \end{equation}
+  and the minimal sufficient sample size by
+  \begin{equation}
+    k_*^{(\varepsilon)}
+    =
+    \min\{k_t:\, y_{k_t}^{(\varepsilon)}=1\}.
+  \end{equation}
+\end{definition}
+
+This turns each nested-$k$ trajectory into a supervised prediction problem whose labels depend only on future validation improvement, not on the criterion being tested.
+We then define a family of criterion-specific state encoders that consume only the information available up to~$k_t$.
+
+\paragraph{Criterion-specific states.}
+For a method label $m\in\{1,2,D,D{+}\mathrm{spec}\}$, let
+\begin{equation}
+  s_{k_t}^{(1)}=\Delta_1(k_t),\qquad
+  s_{k_t}^{(2)}=\Delta_2(k_t),\qquad
+  s_{k_t}^{(D)}=\Delta_2^{(D)}(k_t).
+\end{equation}
+From each scalar criterion we form a per-checkpoint feature vector
+\begin{equation}
+  \boldsymbol{\phi}_{k_t}^{(m)}
+  =
+  \Phi_m\!\left(
+    k_t,\,
+    s_{k_t}^{(m)},\,
+    \widehat{\mathrm{stderr}}(s_{k_t}^{(m)}),\,
+    \widehat{\beta}_{k_t}^{(m)}
+  \right),
+\end{equation}
+where $\widehat{\beta}_{k_t}^{(m)}$ is the local log--log slope estimated from adjacent checkpoints.
+For the enriched subspace variant $m=D{+}\mathrm{spec}$, we augment $\boldsymbol{\phi}_{k_t}^{(D)}$ with eigenspace overlap, spectral concentration, compressed-Hessian gap, gradient-gap norm, and quadratic-alignment diagnostics measured at~$k_t$.
+Given a history length~$r$, the observable state is the window
+\begin{equation}
+  \mathbf{H}_{k_t}^{(m)}
+  =
+  \bigl(
+    \boldsymbol{\phi}_{k_{t-r+1}}^{(m)},
+    \ldots,
+    \boldsymbol{\phi}_{k_t}^{(m)}
+  \bigr),
+\end{equation}
+with left zero-padding when $t<r$.
+
+\paragraph{Matched-capacity LSTM modules.}
+For each method~$m$, we train a separate predictor with identical backbone size, optimizer, and data splits.
+The recurrence is
+\begin{equation}
+  (\mathbf{h}_{j}^{(m)},\mathbf{c}_{j}^{(m)})
+  =
+  \operatorname{LSTM}_{\theta_m}
+  \bigl(
+    \boldsymbol{\phi}_{k_j}^{(m)},
+    \mathbf{h}_{j-1}^{(m)},
+    \mathbf{c}_{j-1}^{(m)}
+  \bigr),
+  \qquad j=t-r+1,\ldots,t,
+\end{equation}
+and the final hidden state $\mathbf{h}_{k_t}^{(m)}$ is passed to two heads:
+\begin{align}
+  p_{\theta_m}^{(\varepsilon)}(k_t)
+  &=
+  \sigma\!\left(
+    \mathbf{a}_m^\top \mathbf{h}_{k_t}^{(m)} + b_m
+  \right),
+  \\
+  \widehat{k}_{*,\theta_m}^{(\varepsilon)}(k_t)
+  &=
+  \exp\!\left(
+    \mathbf{r}_m^\top \mathbf{h}_{k_t}^{(m)} + d_m
+  \right).
+\end{align}
+The first head predicts the probability that $k_t$ is already sufficient; the second regresses the minimal sufficient sample size on the logarithmic scale.
+
+\paragraph{Training objective and fairness protocol.}
+For each criterion-specific module we minimize
+\begin{equation}
+  \mathcal{J}_m(\theta_m)
+  =
+  \lambda_{\mathrm{cls}}
+  \operatorname{BCE}\!\left(
+    p_{\theta_m}^{(\varepsilon)}(k_t),\,
+    y_{k_t}^{(\varepsilon)}
+  \right)
+  +
+  \lambda_{\mathrm{reg}}
+  \operatorname{Huber}\!\left(
+    \log \widehat{k}_{*,\theta_m}^{(\varepsilon)}(k_t),\,
+    \log k_*^{(\varepsilon)}
+  \right),
+\end{equation}
+averaged over checkpoints and trajectories.
+The comparison is intentionally matched-capacity: the hidden width, number of recurrent layers, history length, optimizer, stopping rule, and train/validation/test partition are held fixed across all modules, while only the criterion-dependent state map $\Phi_m$ changes.
+This isolates whether predictive advantage comes from $\Delta_1$, from full-space $\Delta_2$, or from the curvature-aligned subspace criterion~$\Delta_2^{(D)}$ itself.
+
+Our working hypothesis is that the subspace family will be the strongest predictor of sample sufficiency.
+Relative to $\Delta_1$, it retains second-order sensitivity to how the landscape changes with~$k$; relative to full-space $\Delta_2$, it suppresses ambient-space noise by restricting the state to the dominant curvature directions.
+As a preliminary study, we also run a small pilot split with two training trajectories, one validation trajectory, and one held-out test trajectory.
+These pilot numbers are useful for calibrating the reporting format and for checking that the criterion-specific prediction task is well posed, but they are \emph{not} yet the main empirical evidence of the paper.
+
+\begin{table}[t]
+  \centering
+  \small
+  \input{figures/sufficiency_metrics_pilot_table.tex}
+  \caption{Pilot sample-sufficiency results on a single held-out trajectory. The split is intentionally small and is reported only as a preliminary study, not as definitive evidence for ranking $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$.}
+  \label{tab:sufficiency-pilot}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{sufficiency_metrics_pilot.pdf}
+  \caption{Pilot test metrics for the criterion-specific LSTM modules. The purpose of the figure is to summarize the current preliminary study rather than to establish the final predictive hierarchy between the criteria.}
+  \label{fig:sufficiency-metrics-pilot}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{sufficiency_predictions_pilot.pdf}
+  \caption{Pilot held-out predictions of sufficiency probability and minimal sufficient sample size $\hat{k}_*^{(\varepsilon)}$ as functions of the current sample size~$k$.}
+  \label{fig:sufficiency-predictions-pilot}
+\end{figure}
+
+The current manuscript therefore fixes both the exact training problem and a pilot reporting format.
+Stronger claims about which criterion is most predictive will be deferred until the larger sufficiency run matrix is executed with more trajectories and repeated held-out splits.
+
 \section{Discussion and limitations}
 \label{sec:discussion}
 
@@ -580,7 +737,7 @@ Algorithmically, the criterion is compatible with scalable Hessian--vector produ
 Empirically, the strongest current result is that nanoGPT-based experiments in two settings show near-$k^{-1}$ decay for $\Delta_1$ and near-$k^{-2}$ decay for both $\Delta_2$ and $\Delta_2^{(10)}$, with the Tiny Shakespeare reference run giving slopes of about $-1.08$, $-1.93$, and $-1.99$, and the WikiText-2 validation run giving slopes of about $-0.97$, $-2.24$, and $-1.97$.
 These measurements support the claim that the subspace mean-squared criterion tracks the full mean-squared criterion while operating in an intrinsic low-dimensional curvature subspace.
 
-Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, and connections to generalization via implicit regularization along top curvature directions.
+Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, criterion-specific prediction of sample sufficiency from nested-$k$ trajectories, and connections to generalization via implicit regularization along top curvature directions.
 
 \begin{ack}
   This work was supported in part by \emph{[insert funding sources]}.

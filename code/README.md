@@ -21,10 +21,14 @@ From the **repository root** (imports assume `code` on `PYTHONPATH` via the scri
 ```bash
 python code/run_experiments.py
 python code/plot_scaling_from_json.py
+python code/train_sufficiency_module.py
+python code/plot_sufficiency_results.py
 ```
 
 - **JSON** is written to `code/output/landscape/landscape_experiments.json` (path from `config.yaml` → `common.output_dir`).
 - **Primary and ablation PDFs** are written to `paper/figures/` for inclusion in `main.tex`.
+- **Criterion-specific LSTM sufficiency outputs** are written to `code/output/sufficiency/`.
+- **Sufficiency pilot PDFs and LaTeX table snippets** are written to `paper/figures/`.
 
 Optional: `python code/plot_scaling_from_json.py /path/to/custom.json`
 
@@ -35,8 +39,10 @@ Optional: `python code/plot_scaling_from_json.py /path/to/custom.json`
 - a shared base configuration
 - a `run_matrix` with named settings
 - reviewer-facing ablation controls (`sigma_values`, `main_subspace_dim`, `overlap_dims`)
+- a `sufficiency` block for criterion-specific `LSTM` predictors
 
 If `data.text_path` is null, the runner downloads the requested corpus to `code/data/`.
+For sufficiency labels based on validation loss, set `experiment.validation_sequences` to a positive value before rerunning the landscape measurements.
 
 ## Layout
 
@@ -44,9 +50,11 @@ If `data.text_path` is null, the runner downloads the requested corpus to `code/
 |------------|------|
 | `run_experiments.py` | Training loops, Δ metrics, ablations, JSON export |
 | `plot_scaling_from_json.py` | Main and ablation figures from JSON |
+| `train_sufficiency_module.py` | Train matched-capacity LSTM sufficiency predictors |
 | `config.yaml` | Base config plus named run matrix |
 | `data/` | Versioned input corpora used by the run matrix |
 | `gpt/` | NanoGPT-style model |
+| `models/` | Downstream neural modules, including the sufficiency LSTM |
 | `criteria.py`, `eigenvectors.py` | Loss increments and top Hessian directions |
 | `shared/` | Text data loading |
 
@@ -65,3 +73,4 @@ The JSON log stores:
 - recomputed vs frozen subspace comparisons
 - eigenspace drift metrics
 - quadratic-proxy alignment diagnostics
+- optional validation losses for downstream sample-sufficiency labels

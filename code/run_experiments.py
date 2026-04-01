@@ -25,6 +25,7 @@ from criteria import (
     compute_delta2,
     compute_delta2_subspace,
     compute_increment,
+    compute_loss,
     quadratic_form_expectation,
     _get_flat_params,
     _set_flat_params,
@@ -114,6 +115,19 @@ def default_text_path(conf) -> Path:
         "wikitext2": "wikitext2_train.txt",
     }.get(corpus_name, f"{corpus_name}.txt")
     return _repo_root / "code" / "data" / filename
+
+
+def split_train_validation_indices(n_total: int, max_k: int, validation_sequences: int):
+    perm = torch.randperm(n_total).tolist()
+    val_size = max(int(validation_sequences), 0)
+    if max_k + 1 + val_size > n_total:
+        raise ValueError(
+            f"Need at least max(k)+1+validation_sequences = {max_k + 1 + val_size} "
+            f"text chunks; have {n_total}."
+        )
+    if val_size == 0:
+        return perm, []
+    return perm[:-val_size], perm[-val_size:]
 
 
 def build_run_matrix(conf):
@@ -221,13 +235,12 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
     n_total = len(dataset)
     sample_sizes = list(conf.experiment.sample_sizes)
     max_k = max(sample_sizes)
-    if max_k + 1 > n_total:
-        raise ValueError(
-            f"Need at least max(k)+1 = {max_k + 1} text chunks; have {n_total}. "
-            "Use a longer corpus or smaller block_size / stride."
-        )
-
-    perm = torch.randperm(n_total).tolist()
+    validation_sequences = int(getattr(conf.experiment, "validation_sequences", 0))
+    train_pool, val_indices = split_train_validation_indices(
+        n_total=n_total,
+        max_k=max_k,
+        validation_sequences=validation_sequences,
+    )
     mb = int(conf.experiment.loss_microbatch)
     grad_mb = int(getattr(conf.experiment, "gradient_microbatch", mb))
     hmax = int(conf.experiment.hessian_max_sequences)
@@ -250,7 +263,7 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
         model = gpt_from_conf(conf)
         model.to(device)
 
-        indices_k = perm[:k]
+        indices_k = train_pool[:k]
         train_subset = Subset(dataset, indices_k)
         train_loader = DataLoader(
             train_subset,
@@ -276,10 +289,18 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
         x_k = x_k.to(device)
         y_k = y_k.to(device)
 
-        indices_k1 = perm[: k + 1]
+        indices_k1 = train_pool[: k + 1]
         x_k1, y_k1 = get_subset_data(dataset, indices_k1)
         x_k1 = x_k1.to(device)
         y_k1 = y_k1.to(device)
+
+        if val_indices:
+            x_val, y_val = get_subset_data(dataset, val_indices)
+            x_val = x_val.to(device)
+            y_val = y_val.to(device)
+            validation_loss = compute_loss(model, x_val, y_val, microbatch=mb)
+        else:
+            validation_loss = None
 
         xh, yh = trim_for_hessian(x_k, y_k, hmax)
         xh1, yh1 = trim_for_hessian(x_k1, y_k1, hmax)
@@ -486,6 +507,9 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
             "hessian_sequences_used": int(xh.shape[0]),
             "hessian_sequences_used_k1": int(xh1.shape[0]),
             "final_loss": final_loss,
+            "validation_loss": validation_loss,
+            "validation_sequences": len(val_indices),
+            "train_pool_size": len(train_pool),
             "model_summary": {
                 "block_size": int(conf.model.block_size),
                 "n_layer": int(conf.model.n_layer),

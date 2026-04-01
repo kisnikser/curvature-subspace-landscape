@@ -28,6 +28,7 @@ experiment:
   betas: [0.9, 0.95]
   # Cap sequences used for Hessian HVP / subspace (full k still used for Delta_1 / Delta_2 losses)
   hessian_max_sequences: 64
+  validation_sequences: 0
   loss_microbatch: 512
   gradient_microbatch: 128
 
@@ -61,6 +62,31 @@ experiment:
   alignment_num_samples: 32
 
   num_seeds: 3
+
+sufficiency:
+  label_metric: validation_loss
+  label_epsilon: 0.02
+  sequence_window: 4
+  methods:
+    - delta1
+    - delta2
+    - delta2_subspace
+    - delta2_subspace_plus_spectral
+  subspace_dim: 10
+  hidden_dim: 64
+  num_layers: 1
+  dropout: 0.0
+  batch_size: 16
+  max_epochs: 200
+  learning_rate: 1.0e-3
+  weight_decay: 1.0e-4
+  train_fraction: 0.6
+  val_fraction: 0.2
+  test_fraction: 0.2
+  classifier_weight: 1.0
+  regression_weight: 0.25
+  early_stopping_patience: 25
+  random_seed: 123
 
 run_matrix:
   - name: tiny_shakespeare_reference
