@@ -76,12 +76,19 @@ def aggregate_by_k(runs: list[dict]) -> dict[int, dict[str, float]]:
     for k, rows in sorted(by_k.items()):
         d1 = np.array([r["delta1"] for r in rows])
         d2 = np.array([r["delta2"] for r in rows])
+        val_rows = [r for r in rows if r.get("validation_loss") is not None]
         out[k] = {
             "delta1_mean": d1.mean(),
             "delta1_stderr": d1.std(ddof=1) / np.sqrt(len(d1)) if len(d1) > 1 else 0.0,
             "delta2_mean": d2.mean(),
             "delta2_stderr": d2.std(ddof=1) / np.sqrt(len(d2)) if len(d2) > 1 else 0.0,
         }
+        if val_rows:
+            v = np.array([r["validation_loss"] for r in val_rows], dtype=float)
+            out[k]["validation_loss_mean"] = v.mean()
+            out[k]["validation_loss_stderr"] = (
+                v.std(ddof=1) / np.sqrt(len(v)) if len(v) > 1 else 0.0
+            )
         if rows and "delta2_subspace" in rows[0]:
             dims = sorted(int(x) for x in rows[0]["delta2_subspace"].keys())
             for D in dims:
@@ -161,6 +168,29 @@ def plot_main(agg: dict[int, dict], out_path: Path, title: str | None = None) ->
     if title:
         ax.set_title(title, fontsize=10)
     ax.legend(fontsize=8)
+    ax.grid(True, which="both", alpha=0.3)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, format="pdf")
+    plt.close(fig)
+    print(f"Wrote {out_path}")
+
+
+def plot_validation_loss(agg: dict[int, dict], out_path: Path, title: str | None = None) -> None:
+    ks = np.array(sorted(k for k in agg.keys() if "validation_loss_mean" in agg[k]))
+    if ks.size == 0:
+        return
+    vals = np.array([agg[k]["validation_loss_mean"] for k in ks])
+    errs = np.array([agg[k]["validation_loss_stderr"] for k in ks])
+
+    fig, ax = plt.subplots(figsize=(5.5, 4.0))
+    ax.plot(ks, vals, "o-", ms=4, label="validation loss")
+    ax.fill_between(ks, vals - errs, vals + errs, alpha=0.18)
+    ax.set_xscale("log")
+    ax.set_xlabel(r"Training set size $k$")
+    ax.set_ylabel("Validation loss")
+    if title:
+        ax.set_title(title, fontsize=10)
     ax.grid(True, which="both", alpha=0.3)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -357,6 +387,11 @@ def main() -> None:
         suffix = setting_slug(setting_name, is_primary)
         title = setting_name.replace("_", " ")
         plot_main(agg, out_dir / f"scaling_delta_loglog{suffix}.pdf", title=title)
+        plot_validation_loss(
+            agg,
+            out_dir / f"validation_loss_vs_k{suffix}.pdf",
+            title=title,
+        )
         for D in available_dims(rows):
             plot_subspace(
                 agg,

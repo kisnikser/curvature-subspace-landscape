@@ -39,10 +39,11 @@ Optional: `python code/plot_scaling_from_json.py /path/to/custom.json`
 - a shared base configuration
 - a `run_matrix` with named settings
 - reviewer-facing ablation controls (`sigma_values`, `main_subspace_dim`, `overlap_dims`)
+- held-out validation tracking through `experiment.validation_sequences`
 - a `sufficiency` block for criterion-specific `LSTM` predictors
 
 If `data.text_path` is null, the runner downloads the requested corpus to `code/data/`.
-For sufficiency labels based on validation loss, set `experiment.validation_sequences` to a positive value before rerunning the landscape measurements.
+Held-out validation quality is tracked through `experiment.validation_sequences` and is used both for reporting the main learning curves and for constructing sufficiency labels.
 
 ## Layout
 

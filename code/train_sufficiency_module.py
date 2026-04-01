@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -20,7 +19,7 @@ from sufficiency_utils import (
     default_landscape_json_path,
     load_landscape_runs,
     make_samples,
-    method_display_name,
+    method_specs,
     partition_samples,
     split_trajectories,
 )
@@ -47,6 +46,16 @@ def brier_score(labels: list[float], probs: list[float]) -> float:
     if not labels:
         return float("nan")
     return sum((p - y) ** 2 for p, y in zip(probs, labels)) / len(labels)
+
+
+def summarize_metric(values: list[float]) -> dict[str, float]:
+    tensor = torch.tensor(values, dtype=torch.float64)
+    return {
+        "mean": tensor.mean().item() if values else float("nan"),
+        "std": tensor.std(unbiased=True).item() if len(values) > 1 else 0.0,
+        "min": tensor.min().item() if values else float("nan"),
+        "max": tensor.max().item() if values else float("nan"),
+    }
 
 
 def evaluate(model, loader, classifier_weight: float, regression_weight: float, device):
@@ -102,12 +111,26 @@ def evaluate(model, loader, classifier_weight: float, regression_weight: float, 
     }
 
 
-def train_one_method(conf, runs: list[dict], method: str, out_dir: Path, device) -> dict:
-    samples = make_samples(conf, runs, method=method)
+def train_one_repeat(
+    conf,
+    runs: list[dict],
+    method_spec: dict,
+    epsilon: float,
+    repeat_idx: int,
+    out_dir: Path,
+    device,
+) -> dict:
+    samples = make_samples(conf, runs, method_spec=method_spec, epsilon=epsilon)
     if not samples:
-        raise ValueError(f"No samples built for method {method}")
+        raise ValueError(f"No samples built for method {method_spec['key']}")
 
-    splits = split_trajectories(conf, samples)
+    splits = split_trajectories(
+        samples,
+        train_fraction=float(conf.sufficiency.train_fraction),
+        val_fraction=float(conf.sufficiency.val_fraction),
+        seed=int(conf.sufficiency.split_seed) + repeat_idx,
+        stratify_by_setting=bool(conf.sufficiency.stratify_by_setting),
+    )
     partitioned = partition_samples(samples, splits)
     example_dim = len(samples[0]["steps"][0])
     feature_mean, feature_std = compute_normalization_stats(partitioned["train"], example_dim)
@@ -192,7 +215,10 @@ def train_one_method(conf, runs: list[dict], method: str, out_dir: Path, device)
                 "feature_mean": feature_mean,
                 "feature_std": feature_std,
                 "history": history,
-                "method": method,
+                "method": method_spec["method"],
+                "method_key": method_spec["key"],
+                "label_epsilon": epsilon,
+                "repeat_idx": repeat_idx,
             }
             patience = 0
         else:
@@ -201,7 +227,7 @@ def train_one_method(conf, runs: list[dict], method: str, out_dir: Path, device)
                 break
 
     if best_state is None:
-        raise RuntimeError(f"Training failed to produce a checkpoint for {method}")
+        raise RuntimeError(f"Training failed to produce a checkpoint for {method_spec['key']}")
 
     model.load_state_dict(best_state["model"])
     val_metrics = evaluate(
@@ -219,14 +245,18 @@ def train_one_method(conf, runs: list[dict], method: str, out_dir: Path, device)
         device=device,
     )
 
-    method_dir = out_dir / method
+    method_dir = out_dir / method_spec["key"] / f"eps_{epsilon:.4f}" / f"repeat_{repeat_idx:02d}"
     method_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = method_dir / "model.pt"
     torch.save(best_state, checkpoint_path)
 
     result = {
-        "method": method,
-        "display_name": method_display_name(method, int(conf.sufficiency.subspace_dim)),
+        "method": method_spec["method"],
+        "method_key": method_spec["key"],
+        "display_name": method_spec["display_name"],
+        "subspace_dim": method_spec.get("subspace_dim"),
+        "label_epsilon": epsilon,
+        "repeat_idx": repeat_idx,
         "checkpoint_path": str(checkpoint_path),
         "feature_dim": example_dim,
         "splits": {name: sorted(ids) for name, ids in splits.items()},
@@ -255,21 +285,61 @@ def train_one_method(conf, runs: list[dict], method: str, out_dir: Path, device)
     return result
 
 
+def aggregate_repeats(method_spec: dict, epsilon: float, repeats: list[dict]) -> dict:
+    metric_names = ["loss", "auroc", "brier", "mae_k"]
+    return {
+        "method": method_spec["method"],
+        "method_key": method_spec["key"],
+        "display_name": method_spec["display_name"],
+        "subspace_dim": method_spec.get("subspace_dim"),
+        "label_epsilon": epsilon,
+        "num_repeats": len(repeats),
+        "val_summary": {
+            name: summarize_metric([row["val_metrics"][name] for row in repeats])
+            for name in metric_names
+        },
+        "test_summary": {
+            name: summarize_metric([row["test_metrics"][name] for row in repeats])
+            for name in metric_names
+        },
+        "repeats": repeats,
+    }
+
+
 def main() -> None:
     conf = OmegaConf.load(CONFIG_PATH)
     json_path = Path(sys.argv[1]) if len(sys.argv) > 1 else default_landscape_json_path(conf)
+    out_dir = (
+        Path(sys.argv[2])
+        if len(sys.argv) > 2
+        else REPO_ROOT / "code" / "output" / "sufficiency"
+    )
     if not json_path.is_file():
         raise SystemExit(f"Missing {json_path}; run python code/run_experiments.py first.")
 
     runs = load_landscape_runs(json_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    out_dir = REPO_ROOT / "code" / "output" / "sufficiency"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
-    for method in conf.sufficiency.methods:
-        print(f"Training {method_display_name(method, int(conf.sufficiency.subspace_dim))}")
-        results.append(train_one_method(conf, runs, method, out_dir=out_dir, device=device))
+    epsilons = list(getattr(conf.sufficiency, "label_epsilons", [0.02]))
+    for method_spec in method_specs(conf):
+        for epsilon in epsilons:
+            print(f"Training {method_spec['display_name']} with epsilon={float(epsilon):.4f}")
+            repeats = []
+            for repeat_idx in range(int(conf.sufficiency.num_split_repeats)):
+                repeats.append(
+                    train_one_repeat(
+                        conf,
+                        runs,
+                        method_spec=method_spec,
+                        epsilon=float(epsilon),
+                        repeat_idx=repeat_idx,
+                        out_dir=out_dir,
+                        device=device,
+                    )
+                )
+            results.append(aggregate_repeats(method_spec, float(epsilon), repeats))
 
     summary = {
         "source_json": str(json_path),

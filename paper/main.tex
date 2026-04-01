@@ -486,6 +486,12 @@ We train a model from scratch on those $k$ points until stopping rules in Table~
 Empirical risks $\mathcal{L}_k$ and $\mathcal{L}_{k+1}$ use the same nested $k$ and $k{+}1$ points, matching Section~\ref{sec:prelim}.
 We repeat the loop over independent random seeds and report mean and variability.
 
+\paragraph{Held-out quality.}
+Alongside the landscape criteria, we track held-out next-token cross-entropy on a fixed validation pool that is disjoint from the nested training subsets.
+This validation curve serves two purposes.
+First, it links the geometric measurements to the more standard notion of predictive quality as a function of~$k$.
+Second, in the sufficiency study below it provides the target quantity used to define whether the current sample size already captures essentially all of the attainable held-out improvement.
+
 \paragraph{Estimators.}
 Theoretical $\Delta_1$ evaluates $|\mathcal{L}_{k+1}-\mathcal{L}_k|$ at a fixed neighborhood of $\mathbf{w}_k^\star$; in code we use Monte Carlo over random perturbation directions to reduce variance (counts in Appendix~\ref{app:exp}).
 $\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian eigenvectors at $\mathbf{w}_k^\star$ use power iteration with Hessian--vector products on the $k$-point loss.
@@ -494,7 +500,7 @@ $\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian e
 The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch.
 Our run matrix contains a \emph{reference} Tiny Shakespeare setting and a \emph{stronger} WikiText-2 setting, both treated as character-level language modeling problems with nested subsets of training chunks.
 Reference scripts (relative to the repository root): \texttt{code/run\_experiments.py} (writes \texttt{code/output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds the main and ablation figures under \texttt{paper/figures/}).
-For the predictive sufficiency extension below, the same runner can optionally reserve a fixed validation pool and log validation loss at each~$k$.
+The same runner also logs validation loss at each~$k$, so that the geometric curves and held-out-quality curves are always available in the same measurement record.
 
 \subsection{Scaling laws (nanoGPT on Tiny Shakespeare)}
 \label{sec:exp-mlp}
@@ -525,8 +531,8 @@ Empirically, $\Delta_2^{(10)}$ stays in the same order of magnitude as $\Delta_2
 \label{sec:exp-cross-setting}
 
 The stronger WikiText-2 run reproduces the same qualitative separation between the criteria on a different text corpus and a wider nanoGPT configuration.
-On the pilot grid $k\in\{256,512,1024,2048,4096\}$, the fitted slopes are approximately $-0.97$ for $\Delta_1$, $-2.24$ for $\Delta_2$, and $-1.97$ for $\Delta_2^{(10)}$.
-Across that grid, $\Delta_1$ decreases by about $11.6\times$, while $\Delta_2$ and $\Delta_2^{(10)}$ decrease by about $186\times$ and $213\times$, respectively.
+On the current grid $k\in\{256,384,512,768,1024,1280,1536,1792,2048,2560,3072\}$, the fitted slopes are approximately $-0.98$ for $\Delta_1$, $-2.26$ for $\Delta_2$, and $-2.07$ for $\Delta_2^{(10)}$.
+Across that grid, $\Delta_1$ decreases by about $7.6\times$, while $\Delta_2$ and $\Delta_2^{(10)}$ decrease by about $380\times$ and $142\times$, respectively.
 This cross-setting agreement strengthens the interpretation that the mean-squared criteria exhibit near-$k^{-2}$ behavior beyond the Tiny Shakespeare reference task.
 
 \begin{figure}[t]
@@ -549,7 +555,7 @@ We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (i
 These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^{(D)}$.
 For $D{=}10$, the mean overlap between the top-$D$ subspaces of $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$ is about $0.95$ in both settings, which is consistent with moderate eigenspace drift rather than catastrophic subspace instability.
 
-\subsection{Next-stage protocol: predicting sample sufficiency}
+\subsection{Criterion-specific prediction of sample sufficiency}
 \label{sec:exp-sufficiency-protocol}
 Having established criterion-specific scaling curves, the next experimental stage turns the same nested-$k$ trajectories into a prediction problem: given the recent history of a landscape criterion at sample size~$k$, can one decide whether more data will still produce a meaningful improvement?
 
@@ -674,35 +680,41 @@ averaged over checkpoints and trajectories.
 The comparison is intentionally matched-capacity: the hidden width, number of recurrent layers, history length, optimizer, stopping rule, and train/validation/test partition are held fixed across all modules, while only the criterion-dependent state map $\Phi_m$ changes.
 This isolates whether predictive advantage comes from $\Delta_1$, from full-space $\Delta_2$, or from the curvature-aligned subspace criterion~$\Delta_2^{(D)}$ itself.
 
-Our working hypothesis is that the subspace family will be the strongest predictor of sample sufficiency.
-Relative to $\Delta_1$, it retains second-order sensitivity to how the landscape changes with~$k$; relative to full-space $\Delta_2$, it suppresses ambient-space noise by restricting the state to the dominant curvature directions.
-As a preliminary study, we also run a small pilot split with two training trajectories, one validation trajectory, and one held-out test trajectory.
-These pilot numbers are useful for calibrating the reporting format and for checking that the criterion-specific prediction task is well posed, but they are \emph{not} yet the main empirical evidence of the paper.
+The design hypothesis is that curvature-aligned states should dominate full-space $\Delta_2$ as predictors of sample sufficiency.
+Relative to $\Delta_1$, they retain second-order sensitivity to how the landscape changes with~$k$; relative to full-space $\Delta_2$, they suppress ambient-space noise by restricting the state to the dominant curvature directions.
+We now evaluate this prediction problem on the full \texttt{series1} bank: two settings, four seeds per setting, and hence eight nested-$k$ trajectories in total.
+For each $\varepsilon\in\{0.01,0.02,0.05\}$, we run five repeated stratified train/validation/test splits with four training trajectories, two validation trajectories, and two held-out test trajectories per split.
+The resulting picture is more nuanced than the initial hypothesis but already informative.
+Across all three $\varepsilon$ values, the full-space module based on $\Delta_2$ is consistently the weakest variant.
+At $\varepsilon=0.02$, for example, it attains test AUROC $0.90\pm0.07$, Brier score $0.105\pm0.047$, and $\operatorname{MAE}(\hat{k}_*)=680\pm184$.
+By contrast, the curvature-aligned family yields the strongest ranking metrics: LISSA-D20 reaches the best test AUROC ($0.99\pm0.01$), while the enriched LISSA-D10+Spec variant achieves the best regression accuracy for the sufficient sample size with $\operatorname{MAE}(\hat{k}_*)=437\pm98$.
+The $\Delta_1$ baseline nevertheless remains competitive and achieves the best test Brier score at $\varepsilon=0.02$, so the current evidence supports a narrower claim: subspace-aware states clearly improve on full-space $\Delta_2$, while enriched spectral features are especially useful when the goal is forecasting $k_*^{(\varepsilon)}$ rather than only classifying sufficiency.
 
 \begin{table}[t]
   \centering
   \small
-  \input{figures/sufficiency_metrics_pilot_table.tex}
-  \caption{Pilot sample-sufficiency results on a single held-out trajectory. The split is intentionally small and is reported only as a preliminary study, not as definitive evidence for ranking $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$.}
-  \label{tab:sufficiency-pilot}
+  \input{figures/sufficiency_metrics_series1_table.tex}
+  \caption{Sample-sufficiency results for the criterion-specific LSTM modules at $\varepsilon=0.02$, aggregated over five repeated stratified splits of the eight-trajectory \texttt{series1} run. Curvature-aligned variants consistently outperform full-space $\Delta_2$; the strongest classification score is obtained by LISSA-D20, while LISSA-D10+Spec gives the lowest error for predicting $\hat{k}_*^{(\varepsilon)}$.}
+  \label{tab:sufficiency-series1}
 \end{table}
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{sufficiency_metrics_pilot.pdf}
-  \caption{Pilot test metrics for the criterion-specific LSTM modules. The purpose of the figure is to summarize the current preliminary study rather than to establish the final predictive hierarchy between the criteria.}
-  \label{fig:sufficiency-metrics-pilot}
+  \includegraphics[width=\linewidth]{sufficiency_metrics_series1.pdf}
+  \caption{Test metrics for the criterion-specific LSTM modules at $\varepsilon=0.02$, aggregated over repeated stratified splits. The main empirical separation is between the full-space $\Delta_2$ baseline and the curvature-aligned alternatives; among the latter, LISSA-D20 is strongest on AUROC and LISSA-D10+Spec is strongest on $\operatorname{MAE}(\hat{k}_*)$.}
+  \label{fig:sufficiency-metrics-series1}
 \end{figure}
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{sufficiency_predictions_pilot.pdf}
-  \caption{Pilot held-out predictions of sufficiency probability and minimal sufficient sample size $\hat{k}_*^{(\varepsilon)}$ as functions of the current sample size~$k$.}
-  \label{fig:sufficiency-predictions-pilot}
+  \includegraphics[width=\linewidth]{sufficiency_predictions_series1.pdf}
+  \caption{Held-out sufficiency predictions at $\varepsilon=0.02$, aggregated over repeated stratified splits. The plotted curves show the mean predicted sufficiency probability and mean predicted minimal sufficient sample size $\hat{k}_*^{(\varepsilon)}$ as functions of the current sample size~$k$.}
+  \label{fig:sufficiency-predictions-series1}
 \end{figure}
 
-The current manuscript therefore fixes both the exact training problem and a pilot reporting format.
-Stronger claims about which criterion is most predictive will be deferred until the larger sufficiency run matrix is executed with more trajectories and repeated held-out splits.
+The current manuscript therefore fixes both the exact training problem and a first nontrivial repeated-split evaluation protocol.
+The present evidence is already sufficient to rule out full-space $\Delta_2$ as the strongest sufficiency signal in this setting, but it is not yet sufficient to claim that every curvature-aligned variant uniformly dominates $\Delta_1$ on every metric.
+Expanding the trajectory bank remains important for tightening uncertainty estimates and for testing stronger cross-setting generalization protocols.
 
 \section{Discussion and limitations}
 \label{sec:discussion}

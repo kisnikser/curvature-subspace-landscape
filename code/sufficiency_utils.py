@@ -32,14 +32,57 @@ def safe_log(value: float, floor: float = 1e-12) -> float:
     return math.log(max(float(value), floor))
 
 
-def method_display_name(method: str, subspace_dim: int) -> str:
+def method_display_name(method: str, subspace_dim: int | None = None) -> str:
+    if method == "delta1":
+        return "LISSA-1"
+    if method == "delta2":
+        return "LISSA-2"
+    if subspace_dim is None:
+        raise ValueError(f"subspace_dim is required for method {method}")
     mapping = {
-        "delta1": "LISSA-1",
-        "delta2": "LISSA-2",
         "delta2_subspace": f"LISSA-D{int(subspace_dim)}",
         "delta2_subspace_plus_spectral": f"LISSA-D{int(subspace_dim)}+Spec",
     }
     return mapping.get(method, method)
+
+
+def method_specs(conf) -> list[dict]:
+    specs: list[dict] = []
+    subspace_dims = list(getattr(conf.sufficiency, "subspace_dims", [10]))
+    spectral_dims = list(getattr(conf.sufficiency, "spectral_subspace_dims", [10]))
+    for method in conf.sufficiency.methods:
+        if method in {"delta1", "delta2"}:
+            specs.append(
+                {
+                    "key": method,
+                    "method": method,
+                    "subspace_dim": None,
+                    "display_name": method_display_name(method),
+                }
+            )
+        elif method == "delta2_subspace":
+            for dim in subspace_dims:
+                specs.append(
+                    {
+                        "key": f"{method}_D{int(dim)}",
+                        "method": method,
+                        "subspace_dim": int(dim),
+                        "display_name": method_display_name(method, int(dim)),
+                    }
+                )
+        elif method == "delta2_subspace_plus_spectral":
+            for dim in spectral_dims:
+                specs.append(
+                    {
+                        "key": f"{method}_D{int(dim)}",
+                        "method": method,
+                        "subspace_dim": int(dim),
+                        "display_name": method_display_name(method, int(dim)),
+                    }
+                )
+        else:
+            raise ValueError(f"Unknown sufficiency method: {method}")
+    return specs
 
 
 def group_runs_by_trajectory(runs: list[dict]) -> dict[str, list[dict]]:
@@ -51,7 +94,7 @@ def group_runs_by_trajectory(runs: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
-def _metric_value_and_stderr(row: dict, method: str, subspace_dim: int) -> tuple[float, float]:
+def _metric_value_and_stderr(row: dict, method: str, subspace_dim: int | None) -> tuple[float, float]:
     if method == "delta1":
         stats = row.get("delta1_stats", {})
         return float(row["delta1"]), float(stats.get("stderr", 0.0))
@@ -66,7 +109,7 @@ def _metric_value_and_stderr(row: dict, method: str, subspace_dim: int) -> tuple
     raise ValueError(f"Unknown sufficiency method: {method}")
 
 
-def _local_slope(rows: list[dict], idx: int, method: str, subspace_dim: int) -> float:
+def _local_slope(rows: list[dict], idx: int, method: str, subspace_dim: int | None) -> float:
     if idx == 0:
         return 0.0
     prev_row = rows[idx - 1]
@@ -99,7 +142,7 @@ def _spectral_features(row: dict, subspace_dim: int) -> list[float]:
     ]
 
 
-def step_features(rows: list[dict], idx: int, method: str, subspace_dim: int) -> list[float]:
+def step_features(rows: list[dict], idx: int, method: str, subspace_dim: int | None) -> list[float]:
     row = rows[idx]
     value, stderr = _metric_value_and_stderr(row, method, subspace_dim)
     feats = [
@@ -115,12 +158,12 @@ def step_features(rows: list[dict], idx: int, method: str, subspace_dim: int) ->
     return feats
 
 
-def make_samples(conf, runs: list[dict], method: str) -> list[dict]:
+def make_samples(conf, runs: list[dict], method_spec: dict, epsilon: float) -> list[dict]:
     grouped = group_runs_by_trajectory(runs)
     window = int(conf.sufficiency.sequence_window)
     label_metric = str(conf.sufficiency.label_metric)
-    epsilon = float(conf.sufficiency.label_epsilon)
-    subspace_dim = int(conf.sufficiency.subspace_dim)
+    method = str(method_spec["method"])
+    subspace_dim = method_spec.get("subspace_dim")
     samples = []
 
     for traj_id, rows in grouped.items():
@@ -149,24 +192,21 @@ def make_samples(conf, runs: list[dict], method: str) -> list[dict]:
                     "setting_name": row.get("setting_name", "default"),
                     "seed": int(row["seed"]),
                     "k": int(row["k"]),
+                    "validation_loss": float(row[label_metric]),
+                    "validation_gain": float(row[label_metric]) - final_value,
                     "steps": steps,
                     "label": float(suff_flags[idx]),
                     "k_star": k_star,
                     "log_k_star": log_k_star,
+                    "epsilon": float(epsilon),
                 }
             )
     return samples
 
 
-def split_trajectories(conf, samples: list[dict]) -> dict[str, set[str]]:
-    ids = sorted({sample["trajectory_id"] for sample in samples})
+def _split_ids(ids: list[str], train_fraction: float, val_fraction: float) -> dict[str, set[str]]:
     if len(ids) < 3:
         raise ValueError("Need at least 3 trajectories to create train/val/test splits.")
-    rng = random.Random(int(conf.sufficiency.random_seed))
-    rng.shuffle(ids)
-
-    train_fraction = float(conf.sufficiency.train_fraction)
-    val_fraction = float(conf.sufficiency.val_fraction)
     n_total = len(ids)
     n_train = max(1, int(round(n_total * train_fraction)))
     n_val = max(1, int(round(n_total * val_fraction)))
@@ -182,6 +222,38 @@ def split_trajectories(conf, samples: list[dict]) -> dict[str, set[str]]:
             val_ids.remove(ids[-1])
             val_ids.add(ids[-2])
     return {"train": train_ids, "val": val_ids, "test": test_ids}
+
+
+def split_trajectories(
+    samples: list[dict],
+    *,
+    train_fraction: float,
+    val_fraction: float,
+    seed: int,
+    stratify_by_setting: bool,
+) -> dict[str, set[str]]:
+    ids = sorted({sample["trajectory_id"] for sample in samples})
+    rng = random.Random(seed)
+    if not stratify_by_setting:
+        rng.shuffle(ids)
+        return _split_ids(ids, train_fraction=train_fraction, val_fraction=val_fraction)
+
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for sample in samples:
+        grouped[sample["setting_name"]].append(sample["trajectory_id"])
+    grouped = {k: sorted(set(v)) for k, v in grouped.items()}
+    if any(len(v) < 3 for v in grouped.values()):
+        rng.shuffle(ids)
+        return _split_ids(ids, train_fraction=train_fraction, val_fraction=val_fraction)
+
+    splits = {"train": set(), "val": set(), "test": set()}
+    for setting_name in sorted(grouped):
+        setting_ids = grouped[setting_name][:]
+        rng.shuffle(setting_ids)
+        local = _split_ids(setting_ids, train_fraction=train_fraction, val_fraction=val_fraction)
+        for split_name in splits:
+            splits[split_name].update(local[split_name])
+    return splits
 
 
 def partition_samples(samples: list[dict], splits: dict[str, set[str]]) -> dict[str, list[dict]]:

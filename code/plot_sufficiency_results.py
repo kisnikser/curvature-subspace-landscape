@@ -34,23 +34,40 @@ def sort_predictions(method_result: dict) -> list[dict]:
     return sorted(preds, key=lambda row: float(row["current_k"]))
 
 
-def plot_metric_bars(results: dict, out_path: Path) -> None:
-    methods = results["methods"]
+def filter_methods(results: dict, epsilon: float) -> list[dict]:
+    return [
+        row
+        for row in results["methods"]
+        if abs(float(row.get("label_epsilon", epsilon)) - epsilon) < 1e-12
+    ]
+
+
+def plot_metric_bars(methods: list[dict], out_path: Path, epsilon: float) -> None:
     names = [row["display_name"] for row in methods]
-    auroc = [row["test_metrics"]["auroc"] for row in methods]
-    brier = [row["test_metrics"]["brier"] for row in methods]
-    mae = [row["test_metrics"]["mae_k"] for row in methods]
+    auroc = [row["test_summary"]["auroc"]["mean"] for row in methods]
+    auroc_err = [row["test_summary"]["auroc"]["std"] for row in methods]
+    brier = [row["test_summary"]["brier"]["mean"] for row in methods]
+    brier_err = [row["test_summary"]["brier"]["std"] for row in methods]
+    mae = [row["test_summary"]["mae_k"]["mean"] for row in methods]
+    mae_err = [row["test_summary"]["mae_k"]["std"] for row in methods]
     xs = np.arange(len(names))
 
     fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.6))
     colors = ["#4C78A8", "#F58518", "#54A24B", "#B279A2"]
     datasets = [
-        (auroc, "Test AUROC", (0.0, 1.05)),
-        (brier, "Test Brier", None),
-        (mae, r"Test MAE$(\hat{k}_*)$", None),
+        (auroc, auroc_err, "Test AUROC", (0.0, 1.05)),
+        (brier, brier_err, "Test Brier", None),
+        (mae, mae_err, r"Test MAE$(\hat{k}_*)$", None),
     ]
-    for ax, (vals, ylabel, ylim) in zip(axes, datasets):
-        bars = ax.bar(xs, vals, color=colors[: len(names)], width=0.72)
+    for ax, (vals, errs, ylabel, ylim) in zip(axes, datasets):
+        bars = ax.bar(
+            xs,
+            vals,
+            yerr=errs,
+            capsize=4,
+            color=colors[: len(names)],
+            width=0.72,
+        )
         ax.set_xticks(xs, names, rotation=15)
         ax.set_ylabel(ylabel)
         if ylim is not None:
@@ -65,26 +82,50 @@ def plot_metric_bars(results: dict, out_path: Path) -> None:
                 va="bottom",
                 fontsize=8,
             )
-    fig.suptitle("Pilot sufficiency metrics by criterion-specific LSTM", fontsize=11)
+    fig.suptitle(
+        rf"Sufficiency metrics by criterion-specific LSTM ($\varepsilon={epsilon:.2f}$)",
+        fontsize=11,
+    )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, format="pdf")
     plt.close(fig)
 
 
-def plot_prediction_curves(results: dict, out_path: Path) -> None:
-    methods = results["methods"]
+def _aggregate_prediction_curves(method_result: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    by_k: dict[float, dict[str, list[float]]] = {}
+    for repeat in method_result.get("repeats", []):
+        for pred in repeat.get("test_predictions", []):
+            k = float(pred["current_k"])
+            bucket = by_k.setdefault(
+                k,
+                {"prob": [], "pred_k": [], "true_k": []},
+            )
+            bucket["prob"].append(float(pred["prob_sufficient"]))
+            bucket["pred_k"].append(float(pred["predicted_k_star"]))
+            bucket["true_k"].append(float(pred["true_k_star"]))
+    ks = np.array(sorted(by_k.keys()))
+    prob_mean = np.array([np.mean(by_k[k]["prob"]) for k in ks])
+    pred_mean = np.array([np.mean(by_k[k]["pred_k"]) for k in ks])
+    pred_std = np.array([np.std(by_k[k]["pred_k"], ddof=0) for k in ks])
+    true_mean = np.array([np.mean(by_k[k]["true_k"]) for k in ks])
+    return ks, prob_mean, pred_mean, pred_std, true_mean
+
+
+def plot_prediction_curves(methods: list[dict], out_path: Path, epsilon: float) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.8))
 
     for row in methods:
-        preds = sort_predictions(row)
-        ks = np.array([float(item["current_k"]) for item in preds])
-        probs = np.array([float(item["prob_sufficient"]) for item in preds])
-        pred_k = np.array([float(item["predicted_k_star"]) for item in preds])
-        true_k = np.array([float(item["true_k_star"]) for item in preds])
+        ks, probs, pred_k, pred_k_std, true_k = _aggregate_prediction_curves(row)
         axes[0].plot(ks, probs, marker="o", label=row["display_name"])
         axes[1].plot(ks, pred_k, marker="o", label=row["display_name"])
-        axes[1].plot(ks, true_k, "k--", alpha=0.15)
+        axes[1].fill_between(
+            ks,
+            np.maximum(pred_k - pred_k_std, 1e-12),
+            np.maximum(pred_k + pred_k_std, 1e-12),
+            alpha=0.15,
+        )
+        axes[1].plot(ks, true_k, "k--", alpha=0.12)
 
     axes[0].set_xscale("log")
     axes[0].set_xlabel(r"Current sample size $k$")
@@ -99,27 +140,30 @@ def plot_prediction_curves(results: dict, out_path: Path) -> None:
     axes[1].grid(True, which="both", alpha=0.25)
     axes[1].legend(fontsize=8)
 
-    fig.suptitle("Pilot sufficiency predictions on the held-out trajectory", fontsize=11)
+    fig.suptitle(
+        rf"Aggregated sufficiency predictions over repeated splits ($\varepsilon={epsilon:.2f}$)",
+        fontsize=11,
+    )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, format="pdf")
     plt.close(fig)
 
 
-def write_latex_table(results: dict, out_path: Path) -> None:
+def write_latex_table(methods: list[dict], out_path: Path) -> None:
     lines = [
         r"\begin{tabular}{lccc}",
         r"\toprule",
         r"Method & Test AUROC & Test Brier & Test MAE$(\hat{k}_*)$ \\",
         r"\midrule",
     ]
-    for row in results["methods"]:
-        metrics = row["test_metrics"]
+    for row in methods:
+        metrics = row["test_summary"]
         lines.append(
             f"{row['display_name']} & "
-            f"{metrics['auroc']:.2f} & "
-            f"{metrics['brier']:.3f} & "
-            f"{metrics['mae_k']:.1f} \\\\"
+            f"{metrics['auroc']['mean']:.2f}$\\pm${metrics['auroc']['std']:.2f} & "
+            f"{metrics['brier']['mean']:.3f}$\\pm${metrics['brier']['std']:.3f} & "
+            f"{metrics['mae_k']['mean']:.1f}$\\pm${metrics['mae_k']['std']:.1f} \\\\"
         )
     lines.extend([r"\bottomrule", r"\end{tabular}"])
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -127,16 +171,20 @@ def write_latex_table(results: dict, out_path: Path) -> None:
 
 def main() -> None:
     results_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_RESULTS
+    epsilon = float(sys.argv[2]) if len(sys.argv) > 2 else 0.02
     if not results_path.is_file():
         raise SystemExit(f"Missing {results_path}; run python code/train_sufficiency_module.py first.")
     results = load_results(results_path)
+    methods = filter_methods(results, epsilon=epsilon)
+    if not methods:
+        raise SystemExit(f"No sufficiency results found for epsilon={epsilon:.4f}")
 
-    plot_metric_bars(results, FIG_DIR / "sufficiency_metrics_pilot.pdf")
-    plot_prediction_curves(results, FIG_DIR / "sufficiency_predictions_pilot.pdf")
-    write_latex_table(results, FIG_DIR / "sufficiency_metrics_pilot_table.tex")
-    print(f"Wrote {FIG_DIR / 'sufficiency_metrics_pilot.pdf'}")
-    print(f"Wrote {FIG_DIR / 'sufficiency_predictions_pilot.pdf'}")
-    print(f"Wrote {FIG_DIR / 'sufficiency_metrics_pilot_table.tex'}")
+    plot_metric_bars(methods, FIG_DIR / "sufficiency_metrics_series1.pdf", epsilon=epsilon)
+    plot_prediction_curves(methods, FIG_DIR / "sufficiency_predictions_series1.pdf", epsilon=epsilon)
+    write_latex_table(methods, FIG_DIR / "sufficiency_metrics_series1_table.tex")
+    print(f"Wrote {FIG_DIR / 'sufficiency_metrics_series1.pdf'}")
+    print(f"Wrote {FIG_DIR / 'sufficiency_predictions_series1.pdf'}")
+    print(f"Wrote {FIG_DIR / 'sufficiency_metrics_series1_table.tex'}")
 
 
 if __name__ == "__main__":

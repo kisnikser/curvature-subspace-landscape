@@ -13,9 +13,10 @@ Figures referenced in main.tex:
   eigenspace_drift.pdf                        — overlap between top-D subspaces at k and k+1
   quadratic_alignment.pdf                     — true increment vs quadratic proxy
   setting_comparison_delta2_subspace_D10.pdf  — primary vs stronger validation setting
-  sufficiency_metrics_pilot.pdf               — pilot metric comparison for criterion-specific LSTMs
-  sufficiency_predictions_pilot.pdf           — pilot sufficiency probability and predicted k* curves
-  sufficiency_metrics_pilot_table.tex         — LaTeX table snippet for the pilot sufficiency metrics
+  validation_loss_vs_k.pdf                    — primary held-out quality vs k
+  sufficiency_metrics_series1.pdf             — repeated-split metric comparison for criterion-specific LSTMs
+  sufficiency_predictions_series1.pdf         — repeated-split sufficiency probability and predicted k* curves
+  sufficiency_metrics_series1_table.tex       — LaTeX table snippet for the series1 sufficiency metrics
 
 Additional settings (for example `wikitext2_medium`) use the same filenames with
 an added suffix, e.g. `scaling_delta_loglog_wikitext2_medium.pdf`.
