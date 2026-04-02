@@ -1,33 +1,28 @@
-% Curvature Subspaces and the Loss Landscape at Scale — NeurIPS 2026 skeleton
+% Curvature Subspaces and the Loss Landscape at Scale — TMLR template
 % Compile: pdflatex main && bibtex main && pdflatex main && pdflatex main
-%
-% Package options (see neurips_2026.tex from the official author kit):
-%   \usepackage{neurips_2026}           % Main Track, double-blind (default)
-%   \usepackage[preprint]{neurips_2026} % Named authors (e.g. arXiv)
-%   \usepackage[main, final]{neurips_2026} % Camera-ready Main Track
+% Figures: \graphicspath points to figures/ (repo layout)
 
-\documentclass{article}
+\documentclass[10pt]{article}
+\usepackage{tmlr}
+% If accepted: \usepackage[accepted]{tmlr}
+% For arXiv-style de-anonymized preprint: \usepackage[preprint]{tmlr}
 
-% Submission: anonymous Main Track (default). For arXiv / named preprint use \usepackage[preprint]{neurips_2026}.
-\usepackage{neurips_2026}
+\input{math_commands.tex}
 
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{hyperref}
-\hypersetup{pdfauthor={Anonymous NeurIPS submission}}
-\usepackage{url}
 \usepackage{booktabs}
-\usepackage{amsfonts}
-\usepackage{amsmath,amssymb}
-\usepackage{nicefrac}
-\usepackage{microtype}
-\usepackage{xcolor}
-\usepackage{bm}
 \usepackage{mathtools}
 \usepackage{amsthm}
 \usepackage{graphicx}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Anonymous TMLR submission}}
+\usepackage{url}
+
 \graphicspath{{figures/}}
-\DeclareMathOperator*{\argmin}{arg\,min}
+
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{theorem}{Theorem}
@@ -39,15 +34,15 @@
 
 \title{Curvature Subspaces and the Loss Landscape at Scale}
 
-% Named authors (paste back when switching to \usepackage[preprint]{neurips_2026} or camera-ready \usepackage[main,final]{neurips_2026}):
-% \author{%
-%   Nikita Kiselev \\ Moscow Institute of Physics and Technology (MIPT) \\ Dolgoprudny, Russia \\ \texttt{kiselev.ns@phystech.edu}
-%   \And
-%   Andrey V. Grabovoy \\ Moscow Institute of Physics and Technology (MIPT) \\ Dolgoprudny, Russia \\ \texttt{grabovoy.av@phystech.edu}
-% }
-\author{Anonymous Authors}
+% Under double-blind review, tmlr.sty replaces author block with ``Anonymous authors''.
+\author{\name Placeholder Author \email author@institution.edu \addr Institution}
+
+\def\month{04}
+\def\year{2026}
+\def\openreview{\url{https://openreview.net/forum?id=XXXX}}
 
 \begin{document}
+
 \maketitle
 
 \begin{abstract}
@@ -497,7 +492,7 @@ $\Delta_2$ and $\Delta_2^{(D)}$ follow Section~\ref{sec:algo}; top-$D$ Hessian e
 \paragraph{Code.}
 The scaling experiments use the \emph{nanoGPT} decoder-only transformer (Karpathy's reference implementation) in PyTorch.
 Our run matrix contains a \emph{reference} Tiny Shakespeare setting and a \emph{stronger} WikiText-2 setting, both treated as character-level language modeling problems with nested subsets of training chunks.
-Reference scripts (relative to the repository root): \texttt{code/run\_experiments.py} (writes \texttt{code/output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds the main and ablation figures under \texttt{paper/figures/}).
+Reference scripts (relative to the repository root): \texttt{code/run\_experiments.py} (writes \texttt{code/output/landscape/landscape\_experiments.json}) and \texttt{code/plot\_scaling\_from\_json.py} (builds the main and ablation figures under \texttt{figures/}).
 The same runner also logs validation loss at each~$k$, so that the geometric curves and held-out-quality curves are always available in the same measurement record.
 
 \subsection{Scaling laws (nanoGPT on Tiny Shakespeare)}
@@ -588,14 +583,15 @@ These measurements support the claim that the subspace mean-squared criterion tr
 
 Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, and connections to generalization via implicit regularization along top curvature directions.
 
-\begin{ack}
-  This work was supported in part by \emph{[insert funding sources]}.
-  Experiments used computational resources provided by \emph{[insert cluster or cloud credits]}.
-  The authors used AI-assisted editing tools to refine wording and \LaTeX{} structure; all mathematical claims were verified by the authors.
-\end{ack}
 
-\bibliographystyle{plainnat}
-\bibliography{references}
+
+\section*{Acknowledgments and Disclosure of Funding}
+This work was supported in part by \emph{[insert funding sources]}.
+Experiments used computational resources provided by \emph{[insert cluster or cloud credits]}.
+The authors used AI-assisted editing tools to refine wording and \LaTeX{} structure; all mathematical claims were verified by the authors.
+
+\bibliographystyle{tmlr}
+\bibliography{main}
 
 \appendix
 
@@ -849,8 +845,5 @@ Plotting scripts are described in Section~\ref{sec:experiments}; per-run wall ti
 \noindent\textbf{Compute.}
 Approximate GPU-hours for the reported curves: \emph{[fill in]} (nanoGPT / Tiny Shakespeare), including sweeps over~$k$ and repeated Hessian eigensolves.
 
-% Required for NeurIPS 2026: desk reject if missing. Does not count toward page limit.
-\newpage
-\input{checklist.tex}
 
 \end{document}
