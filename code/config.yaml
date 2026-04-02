@@ -63,34 +63,6 @@ experiment:
 
   num_seeds: 3
 
-sufficiency:
-  label_metric: validation_loss
-  label_epsilons: [0.01, 0.02, 0.05]
-  sequence_window: 4
-  methods:
-    - delta1
-    - delta2
-    - delta2_subspace
-    - delta2_subspace_plus_spectral
-  subspace_dims: [5, 10, 20]
-  spectral_subspace_dims: [10]
-  hidden_dim: 64
-  num_layers: 1
-  dropout: 0.0
-  batch_size: 16
-  max_epochs: 200
-  learning_rate: 1.0e-3
-  weight_decay: 1.0e-4
-  train_fraction: 0.6
-  val_fraction: 0.2
-  test_fraction: 0.2
-  classifier_weight: 1.0
-  regression_weight: 0.25
-  early_stopping_patience: 25
-  split_seed: 123
-  num_split_repeats: 5
-  stratify_by_setting: true
-
 run_matrix:
   - name: tiny_shakespeare_reference
     primary: true

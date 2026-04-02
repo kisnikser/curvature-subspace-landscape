@@ -488,9 +488,7 @@ We repeat the loop over independent random seeds and report mean and variability
 
 \paragraph{Held-out quality.}
 Alongside the landscape criteria, we track held-out next-token cross-entropy on a fixed validation pool that is disjoint from the nested training subsets.
-This validation curve serves two purposes.
-First, it links the geometric measurements to the more standard notion of predictive quality as a function of~$k$.
-Second, in the sufficiency study below it provides the target quantity used to define whether the current sample size already captures essentially all of the attainable held-out improvement.
+This validation curve links the geometric measurements to the more standard notion of predictive quality as a function of~$k$ and lets us report held-out behavior alongside the landscape criteria.
 
 \paragraph{Estimators.}
 Theoretical $\Delta_1$ evaluates $|\mathcal{L}_{k+1}-\mathcal{L}_k|$ at a fixed neighborhood of $\mathbf{w}_k^\star$; in code we use Monte Carlo over random perturbation directions to reduce variance (counts in Appendix~\ref{app:exp}).
@@ -555,167 +553,6 @@ We vary: (i)~$D$; (ii)~random isotropic subspaces vs.\ top Hessian subspaces; (i
 These isolate curvature-aligned signal vs.\ high-dimensional noise in~$\Delta_2^{(D)}$.
 For $D{=}10$, the mean overlap between the top-$D$ subspaces of $\mathbf{H}^{(k)}$ and $\mathbf{H}^{(k+1)}$ is about $0.95$ in both settings, which is consistent with moderate eigenspace drift rather than catastrophic subspace instability.
 
-\subsection{Criterion-specific prediction of sample sufficiency}
-\label{sec:exp-sufficiency-protocol}
-Having established criterion-specific scaling curves, the next experimental stage turns the same nested-$k$ trajectories into a prediction problem: given the recent history of a landscape criterion at sample size~$k$, can one decide whether more data will still produce a meaningful improvement?
-
-\begin{definition}[Sample-sufficiency target]
-  Fix a run with nested training sets $\mathcal{D}_{k_1}\subset\cdots\subset\mathcal{D}_{k_T}$, corresponding minimizers $\mathbf{w}_{k_t}^\star$, and a held-out validation set $\mathcal{V}$ that is disjoint from all $\mathcal{D}_{k_t}$.
-  Let
-  \begin{equation}
-    \mathcal{L}_{\mathrm{val}}(\mathbf{w})
-    =
-    \frac{1}{|\mathcal{V}|}
-    \sum_{(x,y)\in\mathcal{V}}
-    \ell(\mathbf{w};x,y)
-  \end{equation}
-  denote the validation risk.
-  For $\varepsilon>0$, define the residual validation gain at~$k_t$ by
-  \begin{equation}
-    G_{k_t}^{(\mathrm{val})}
-    =
-    \mathcal{L}_{\mathrm{val}}(\mathbf{w}_{k_t}^\star)
-    -
-    \mathcal{L}_{\mathrm{val}}(\mathbf{w}_{k_T}^\star),
-  \end{equation}
-  the binary sufficiency label by
-  \begin{equation}
-    y_{k_t}^{(\varepsilon)}
-    =
-    \mathbf{1}\!\left\{
-      G_{k_t}^{(\mathrm{val})}\leqslant\varepsilon
-    \right\},
-  \end{equation}
-  and the minimal sufficient sample size by
-  \begin{equation}
-    k_*^{(\varepsilon)}
-    =
-    \min\{k_t:\, y_{k_t}^{(\varepsilon)}=1\}.
-  \end{equation}
-\end{definition}
-
-This turns each nested-$k$ trajectory into a supervised prediction problem whose labels depend only on future validation improvement, not on the criterion being tested.
-We then define a family of criterion-specific state encoders that consume only the information available up to~$k_t$.
-
-\paragraph{Criterion-specific states.}
-For a method label $m\in\{1,2,D,D{+}\mathrm{spec}\}$, let
-\begin{equation}
-  s_{k_t}^{(1)}=\Delta_1(k_t),\qquad
-  s_{k_t}^{(2)}=\Delta_2(k_t),\qquad
-  s_{k_t}^{(D)}=\Delta_2^{(D)}(k_t).
-\end{equation}
-From each scalar criterion we form a per-checkpoint feature vector
-\begin{equation}
-  \boldsymbol{\phi}_{k_t}^{(m)}
-  =
-  \Phi_m\!\left(
-    k_t,\,
-    s_{k_t}^{(m)},\,
-    \widehat{\mathrm{stderr}}(s_{k_t}^{(m)}),\,
-    \widehat{\beta}_{k_t}^{(m)}
-  \right),
-\end{equation}
-where $\widehat{\beta}_{k_t}^{(m)}$ is the local log--log slope estimated from adjacent checkpoints.
-For the enriched subspace variant $m=D{+}\mathrm{spec}$, we augment $\boldsymbol{\phi}_{k_t}^{(D)}$ with eigenspace overlap, spectral concentration, compressed-Hessian gap, gradient-gap norm, and quadratic-alignment diagnostics measured at~$k_t$.
-Given a history length~$r$, the observable state is the window
-\begin{equation}
-  \mathbf{H}_{k_t}^{(m)}
-  =
-  \bigl(
-    \boldsymbol{\phi}_{k_{t-r+1}}^{(m)},
-    \ldots,
-    \boldsymbol{\phi}_{k_t}^{(m)}
-  \bigr),
-\end{equation}
-with left zero-padding when $t<r$.
-
-\paragraph{Matched-capacity LSTM modules.}
-For each method~$m$, we train a separate predictor with identical backbone size, optimizer, and data splits.
-The recurrence is
-\begin{equation}
-  (\mathbf{h}_{j}^{(m)},\mathbf{c}_{j}^{(m)})
-  =
-  \operatorname{LSTM}_{\theta_m}
-  \bigl(
-    \boldsymbol{\phi}_{k_j}^{(m)},
-    \mathbf{h}_{j-1}^{(m)},
-    \mathbf{c}_{j-1}^{(m)}
-  \bigr),
-  \qquad j=t-r+1,\ldots,t,
-\end{equation}
-and the final hidden state $\mathbf{h}_{k_t}^{(m)}$ is passed to two heads:
-\begin{align}
-  p_{\theta_m}^{(\varepsilon)}(k_t)
-  &=
-  \sigma\!\left(
-    \mathbf{a}_m^\top \mathbf{h}_{k_t}^{(m)} + b_m
-  \right),
-  \\
-  \widehat{k}_{*,\theta_m}^{(\varepsilon)}(k_t)
-  &=
-  \exp\!\left(
-    \mathbf{r}_m^\top \mathbf{h}_{k_t}^{(m)} + d_m
-  \right).
-\end{align}
-The first head predicts the probability that $k_t$ is already sufficient; the second regresses the minimal sufficient sample size on the logarithmic scale.
-
-\paragraph{Training objective and fairness protocol.}
-For each criterion-specific module we minimize
-\begin{equation}
-  \mathcal{J}_m(\theta_m)
-  =
-  \lambda_{\mathrm{cls}}
-  \operatorname{BCE}\!\left(
-    p_{\theta_m}^{(\varepsilon)}(k_t),\,
-    y_{k_t}^{(\varepsilon)}
-  \right)
-  +
-  \lambda_{\mathrm{reg}}
-  \operatorname{Huber}\!\left(
-    \log \widehat{k}_{*,\theta_m}^{(\varepsilon)}(k_t),\,
-    \log k_*^{(\varepsilon)}
-  \right),
-\end{equation}
-averaged over checkpoints and trajectories.
-The comparison is intentionally matched-capacity: the hidden width, number of recurrent layers, history length, optimizer, stopping rule, and train/validation/test partition are held fixed across all modules, while only the criterion-dependent state map $\Phi_m$ changes.
-This isolates whether predictive advantage comes from $\Delta_1$, from full-space $\Delta_2$, or from the curvature-aligned subspace criterion~$\Delta_2^{(D)}$ itself.
-
-The design hypothesis is that curvature-aligned states should dominate full-space $\Delta_2$ as predictors of sample sufficiency.
-Relative to $\Delta_1$, they retain second-order sensitivity to how the landscape changes with~$k$; relative to full-space $\Delta_2$, they suppress ambient-space noise by restricting the state to the dominant curvature directions.
-We now evaluate this prediction problem on the full \texttt{series1} bank: two settings, four seeds per setting, and hence eight nested-$k$ trajectories in total.
-For each $\varepsilon\in\{0.01,0.02,0.05\}$, we run five repeated stratified train/validation/test splits with four training trajectories, two validation trajectories, and two held-out test trajectories per split.
-The resulting picture is more nuanced than the initial hypothesis but already informative.
-Across all three $\varepsilon$ values, the full-space module based on $\Delta_2$ is consistently the weakest variant.
-At $\varepsilon=0.02$, for example, it attains test AUROC $0.90\pm0.07$, Brier score $0.105\pm0.047$, and $\operatorname{MAE}(\hat{k}_*)=680\pm184$.
-By contrast, the curvature-aligned family yields the strongest ranking metrics: LISSA-D20 reaches the best test AUROC ($0.99\pm0.01$), while the enriched LISSA-D10+Spec variant achieves the best regression accuracy for the sufficient sample size with $\operatorname{MAE}(\hat{k}_*)=437\pm98$.
-The $\Delta_1$ baseline nevertheless remains competitive and achieves the best test Brier score at $\varepsilon=0.02$, so the current evidence supports a narrower claim: subspace-aware states clearly improve on full-space $\Delta_2$, while enriched spectral features are especially useful when the goal is forecasting $k_*^{(\varepsilon)}$ rather than only classifying sufficiency.
-
-\begin{table}[t]
-  \centering
-  \small
-  \input{figures/sufficiency_metrics_series1_table.tex}
-  \caption{Sample-sufficiency results for the criterion-specific LSTM modules at $\varepsilon=0.02$, aggregated over five repeated stratified splits of the eight-trajectory \texttt{series1} run. Curvature-aligned variants consistently outperform full-space $\Delta_2$; the strongest classification score is obtained by LISSA-D20, while LISSA-D10+Spec gives the lowest error for predicting $\hat{k}_*^{(\varepsilon)}$.}
-  \label{tab:sufficiency-series1}
-\end{table}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{sufficiency_metrics_series1.pdf}
-  \caption{Test metrics for the criterion-specific LSTM modules at $\varepsilon=0.02$, aggregated over repeated stratified splits. The main empirical separation is between the full-space $\Delta_2$ baseline and the curvature-aligned alternatives; among the latter, LISSA-D20 is strongest on AUROC and LISSA-D10+Spec is strongest on $\operatorname{MAE}(\hat{k}_*)$.}
-  \label{fig:sufficiency-metrics-series1}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{sufficiency_predictions_series1.pdf}
-  \caption{Held-out sufficiency predictions at $\varepsilon=0.02$, aggregated over repeated stratified splits. The plotted curves show the mean predicted sufficiency probability and mean predicted minimal sufficient sample size $\hat{k}_*^{(\varepsilon)}$ as functions of the current sample size~$k$.}
-  \label{fig:sufficiency-predictions-series1}
-\end{figure}
-
-The current manuscript therefore fixes both the exact training problem and a first nontrivial repeated-split evaluation protocol.
-The present evidence is already sufficient to rule out full-space $\Delta_2$ as the strongest sufficiency signal in this setting, but it is not yet sufficient to claim that every curvature-aligned variant uniformly dominates $\Delta_1$ on every metric.
-Expanding the trajectory bank remains important for tightening uncertainty estimates and for testing stronger cross-setting generalization protocols.
-
 \section{Discussion and limitations}
 \label{sec:discussion}
 
@@ -746,10 +583,10 @@ Large-scale language experiments should follow dataset licenses and institutiona
 We studied the subspace mean-squared landscape increment $\Delta_2^{(D)}$, which restricts Gaussian perturbations to the top-$D$ Hessian eigenspace at a local minimizer of the $k$-sample empirical risk.
 We proved an $\mathcal{O}(k^{-2})$ upper bound with a curvature prefactor depending on~$D$ rather than the full parameter dimension~$N$, and gave a spectral closed form under optional alignment of principal directions between successive empirical risks.
 Algorithmically, the criterion is compatible with scalable Hessian--vector products and low-dimensional Monte Carlo.
-Empirically, the strongest current result is that nanoGPT-based experiments in two settings show near-$k^{-1}$ decay for $\Delta_1$ and near-$k^{-2}$ decay for both $\Delta_2$ and $\Delta_2^{(10)}$, with the Tiny Shakespeare reference run giving slopes of about $-1.08$, $-1.93$, and $-1.99$, and the WikiText-2 validation run giving slopes of about $-0.97$, $-2.24$, and $-1.97$.
+Empirically, the strongest current result is that nanoGPT-based experiments in two settings show near-$k^{-1}$ decay for $\Delta_1$ and near-$k^{-2}$ decay for both $\Delta_2$ and $\Delta_2^{(10)}$, with the Tiny Shakespeare reference run giving slopes of about $-1.08$, $-1.93$, and $-1.99$, and the WikiText-2 validation run giving slopes of about $-0.98$, $-2.26$, and $-2.07$.
 These measurements support the claim that the subspace mean-squared criterion tracks the full mean-squared criterion while operating in an intrinsic low-dimensional curvature subspace.
 
-Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, criterion-specific prediction of sample sufficiency from nested-$k$ trajectories, and connections to generalization via implicit regularization along top curvature directions.
+Interesting extensions include alternative increment measures (e.g.\ different choices of~$q$), sharper high-probability bounds relating eigenspace drift to the residual of Corollary~\ref{cor:spectral}, and connections to generalization via implicit regularization along top curvature directions.
 
 \begin{ack}
   This work was supported in part by \emph{[insert funding sources]}.
