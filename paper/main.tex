@@ -59,6 +59,13 @@ Deep neural loss landscapes are highly anisotropic: most local curvature is conc
 \section{Introduction}
 \label{sec:intro}
 
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.42\linewidth]{criterion_squared_subspace.pdf}
+  \caption{Curvature-aware observation of local landscape stabilization. The proposed subspace mean-squared criterion~$\Delta_{2}^{(D)}(k+1)$ probes the increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ by restricting perturbations to the principal curvature subspace $\mathcal{S}_{D}$ near the minimum~$\mathbf w_k^*$ of the loss function~$\mathcal{L}_{k}(\mathbf{w})$.}
+  \label{fig:intro-subspace-criterion}
+\end{figure}
+
 Training in deep learning is governed not only by the value of the empirical risk at a solution, but also by the local geometry of the loss surface around that solution.
 A large empirical literature studies this geometry through visualizations of loss landscapes, Hessian spectra, and local sharpness, showing that curvature in modern neural networks is highly anisotropic: a relatively small number of directions often carry most of the meaningful second-order structure, while much of parameter space is weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
 This raises a natural question about \emph{landscape stabilization} under growing sample size:
@@ -75,7 +82,7 @@ In a strongly anisotropic landscape, isotropic probing in the full space $\mathb
 This suggests that local landscape stabilization should not be studied only through \emph{whether} the increment decays, but also through \emph{how} that decay is observed.
 
 This paper develops that idea through a curvature-aware observational design.
-We study the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$.
+We study the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:intro-subspace-criterion}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$.
 The purpose of this restriction is not merely dimensional compression.
 Rather, it is to probe the increment in directions that are canonically aligned with the dominant local second-order geometry near a trained solution.
 In this sense, $\Delta_2^{(D)}$ is intended as a curvature-aware observable of local landscape stabilization.
