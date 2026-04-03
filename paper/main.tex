@@ -309,13 +309,19 @@ Adding one new training example $(\mathbf x_{k+1}, \mathbf y_{k+1})$ to $\mathfr
 \end{equation}
 This identity shows that local landscape stabilization can be interpreted as the decay, with increasing $k$, of the deformation induced by one additional sample.
 
-\paragraph{Local quadratic model.}
-To study this deformation near a trained solution, we use a second-order expansion of the empirical risk.
-Fix $\mathbf w_0 \in \mathbb R^N$ and suppose that $\mathcal L_m$ is twice continuously differentiable in a ball $\mathcal U_R(\mathbf w_0) = \{\mathbf w \in \mathbb R^N : \|\mathbf w-\mathbf w_0\|_2 < R\}$. We work with the local quadratic approximation
+\paragraph{Local quadratic surrogate.}
+To study this deformation near a trained solution, we introduce a second-order local surrogate for the empirical risk.
+Fix $\mathbf w_0 \in \mathbb R^N$ and suppose that $\mathcal L_m$ is twice continuously differentiable in a ball
+\[
+\mathcal U_R(\mathbf w_0)
+=
+\{\mathbf w \in \mathbb R^N : \|\mathbf w-\mathbf w_0\|_2 < R\}.
+\]
+We consider the quadratic approximation
 \begin{equation}
 \label{eq:taylor-quadratic}
 \mathcal L_m(\mathbf w)
-=
+\approx
 \mathcal L_m(\mathbf w_0)
 +
 \mathbf g^{(m)}(\mathbf w_0)^\top(\mathbf w-\mathbf w_0)
@@ -331,7 +337,7 @@ where
 =
 \frac{1}{m}\sum_{i=1}^m \nabla_{\mathbf w}\ell_i(\mathbf w)
 =
-\frac{1}{m}\sum_{i=1}^m \mathbf g_{i}(\mathbf w),
+\frac{1}{m}\sum_{i=1}^m \mathbf g_i(\mathbf w),
 \end{equation}
 and
 \begin{equation}
@@ -342,14 +348,14 @@ and
 =
 \frac{1}{m}\sum_{i=1}^m \nabla_{\mathbf w}^2\ell_i(\mathbf w)
 =
-\frac{1}{m}\sum_{i=1}^m \mathbf H_{i}(\mathbf w).
+\frac{1}{m}\sum_{i=1}^m \mathbf H_i(\mathbf w).
 \end{equation}
 
-Applying \eqref{eq:taylor-quadratic} to both $\mathcal L_{k+1}$ and $\mathcal L_k$ at the same reference point $\mathbf w_0$ yields
+Applying \eqref{eq:taylor-quadratic} to both $\mathcal L_{k+1}$ and $\mathcal L_k$ at the same reference point $\mathbf w_0$ yields the corresponding local quadratic surrogate of the increment:
 \begin{multline}
 \label{eq:loss-diff-second}
 \mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
-=
+\approx
 \mathcal L_{k+1}(\mathbf w_0)-\mathcal L_k(\mathbf w_0)
 \\
 +
@@ -360,6 +366,9 @@ Applying \eqref{eq:taylor-quadratic} to both $\mathcal L_{k+1}$ and $\mathcal L_
 \Bigl(\mathbf H^{(k+1)}(\mathbf w_0)-\mathbf H^{(k)}(\mathbf w_0)\Bigr)
 (\mathbf w-\mathbf w_0).
 \end{multline}
+
+The analysis below is carried out for this local quadratic surrogate of the increment field.
+Thus, the ensuing subspace formulas and rate bounds should be interpreted as statements about the curvature-aware criterion under the local quadratic model rather than as exact identities for the full increment outside this approximation regime.
 
 \paragraph{Centering at a minimizer of $\mathcal L_k$.}
 The criterion $\Delta_2^{(D)}$ is intended to monitor stabilization near trained solutions, so the natural reference point is a minimizer of the $k$-sample empirical risk.
@@ -379,9 +388,9 @@ Then $\mathbf g^{(k)}(\mathbf w_k^*) = \mathbf 0$, and \eqref{eq:loss-diff-secon
 (\mathbf w-\mathbf w_k^*)}_{\text{curvature mismatch}}.
 \end{multline}
 
-Thus, under the local quadratic model, the landscape increment is decomposed into three contributions:
+Thus, under the local quadratic surrogate, the increment is decomposed into three contributions:
 a scalar value gap, a linear mismatch term, and a second-order curvature term.
-This decomposition is the basis for the analysis below.
+This decomposition is the basis for the subspace reduction and rate analysis below.
 
 \paragraph{Gradient mismatch induced by the new sample.}
 Because $\mathcal L_{k+1}$ averages $\ell_{k+1}$ with $\mathcal L_k$, the gradient at $\mathbf w_k^*$ satisfies
@@ -524,7 +533,7 @@ a_k + \mathbf c_k^\top \mathbf z + \frac12 \mathbf z^\top \mathbf B_k \mathbf z
 % \end{remark}
 
 \paragraph{Rate bound for the principal-subspace criterion.}
-We now show that the curvature-aligned criterion inherits the same $\mathcal O(k^{-2})$ decay as the full-space mean-squared criterion, while replacing the ambient dimension $N$ in the curvature-dependent prefactor by the subspace dimension $D$.
+We now show that, under the local quadratic surrogate introduced above, the curvature-aligned criterion inherits the same $\mathcal O(k^{-2})$ decay as the full-space mean-squared criterion, while replacing the ambient dimension $N$ in the curvature-dependent prefactor by the subspace dimension $D$.
 
 \begin{theorem}[Subspace mean-squared rate]
 \label{thm:subspace-rate}
@@ -555,7 +564,7 @@ Then
 \end{equation}
 \end{theorem}
 
-Theorem~\ref{thm:subspace-rate} shows that restricting observation to the principal curvature subspace preserves the mean-squared convergence rate while adapting the criterion to a low-dimensional local geometric structure.
+Theorem~\ref{thm:subspace-rate} shows that, within the local quadratic model, restricting observation to the principal curvature subspace preserves the mean-squared convergence rate while adapting the criterion to a low-dimensional local geometric structure.
 Relative to the full-space criterion, the curvature contribution now scales with $D$ rather than the ambient dimension $N$.
 
 \paragraph{Spectral interpretation under stable principal directions.}
