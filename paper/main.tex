@@ -53,7 +53,7 @@
 \maketitle
 
 \begin{abstract}
-Deep neural loss landscapes are highly anisotropic: most local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but these criteria do not exploit local curvature structure and may average the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, while depending on the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products and subspace Monte Carlo. Experiments on nanoGPT-style transformers confirm that the subspace criterion robustly preserves the mean-squared decay across different subspace dimensions and perturbation scales. However, at the tested perturbation scales, the scalar value gap dominates the criterion, making different subspace choices empirically indistinguishable, and the quadratic proxy estimators overestimate the direct criterion by several orders of magnitude. These results support the proposed criterion as a well-behaved curvature-aware observable while highlighting concrete limitations of the current observational design.
+Deep neural loss landscapes are highly anisotropic: most local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but these criteria do not exploit local curvature structure and may average the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, while depending on the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products and subspace Monte Carlo. Experiments on nanoGPT-style transformers confirm that the subspace criterion robustly preserves the mean-squared decay across different subspace dimensions and perturbation scales. At the tested scales, the scalar value gap dominates the criterion, making different subspace choices empirically indistinguishable. A fine-grained perturbation-scale sweep shows that the quadratic proxy estimators are in principle valid at extremely small $\sigma$, confirming the theoretical derivation, but the regime of validity shrinks rapidly with sample size and is too narrow for practical use. These results support the proposed criterion as a well-behaved curvature-aware observable while precisely characterizing the limitations of the current observational design.
 \end{abstract}
 
 \section{Introduction}
@@ -1158,20 +1158,26 @@ The top-curvature subspace remains theoretically motivated as the natural coordi
 \label{sec:exp-direct-vs-proxy}
 
 We next compare the true subspace criterion with the two quadratic proxy estimators introduced in Section~\ref{sec:algo}: the quadratic Monte Carlo estimator and the Gaussian-moment (GM) closed form.
-The goal is to determine when the local quadratic model provides an accurate approximation to the true curvature-aware stabilization signal.
+The goal is to determine precisely when the local quadratic model provides an accurate approximation and when it breaks down.
 
+\paragraph{Fixed-$\sigma$ comparison.}
 Figure~\ref{fig:exp-direct-vs-proxy-curves} compares the three estimators across $k$ in the reference setting ($D{=}10$, $\sigma{=}0.02$).
-The proxy estimators dramatically overestimate the direct criterion.
-At $k{=}100$, the GM estimator exceeds the direct value by a factor of ${\sim}3$; by $k{=}5000$, this ratio grows to ${\sim}10^5$.
-The quadratic MC estimator shows a similar pattern.
+At this perturbation scale, the proxy estimators dramatically overestimate the direct criterion: at $k{=}100$ the GM estimator exceeds the direct value by a factor of ${\sim}3$, growing to ${\sim}10^5$ at $k{=}5000$.
 
-The root cause is visible in the term-contribution analysis.
-The curvature energy $\frac{1}{2}\mathbf z^\top\mathbf B_k\mathbf z$ in the quadratic model accounts for more than $100\%$ of the proxy total, indicating that the second-order approximation of the increment introduces spurious curvature energy that is not present in the true loss difference at $\sigma{=}0.02$.
-Because the true increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is an extremely smooth function of $\mathbf w$ at this scale, the quadratic form substantially overcurves.
+\paragraph{Proxy validity as a function of $\sigma$.}
+To identify the regime in which the quadratic approximation is faithful, we sweep $\sigma$ over a fine grid from $10^{-4}$ to $10^{-1}$ and compute the ratio~$\text{GM}/\text{Direct}$ at each $(k,\sigma)$.
+Figure~\ref{fig:exp-proxy-validity} reports the results.
 
-This is a clear negative result: at the perturbation scales used in our experiments, the quadratic proxy is not a faithful surrogate for the direct criterion.
-The two estimators answer related but quantitatively different questions, and for reliable measurement of $\Delta_2^{(D)}$, direct subspace Monte Carlo should be preferred.
-Table~\ref{tab:exp-direct-vs-proxy} quantifies this disagreement.
+At sufficiently small $\sigma$, the proxy is accurate: for $k{=}100$ in the reference setting, the ratio remains below $1.1$ for $\sigma\leq 0.002$.
+However, the crossover scale $\sigma^*$ at which the proxy begins to deviate shrinks rapidly with $k$.
+By $k{=}300$, only $\sigma\leq 0.0001$ keeps the ratio below $1.1$; for $k\geq 400$, even $\sigma{=}0.0001$ can exceed this threshold.
+This behavior is consistent with the fact that the curvature energy $\frac{1}{2}\mathbf z^\top\mathbf B_k\mathbf z$ grows as $\sigma^4$, while the value gap $a_k^2$ (which both estimators compute exactly) shrinks as $k$ grows, so the relative error of the quadratic terms is amplified.
+
+The same pattern holds in the WikiText-2 setting, where the proxy is near-exact at $\sigma\leq 0.0003$ for small $k$ but diverges even faster than in the reference setting.
+
+These results show that the quadratic proxy is \emph{in principle} valid in a sufficiently local regime, confirming the theoretical basis of the estimators.
+However, the regime of validity is extremely narrow and shrinks with increasing $k$, making the proxy impractical for monitoring stabilization across a range of sample sizes.
+For reliable measurement of $\Delta_2^{(D)}$, direct subspace Monte Carlo should be preferred.
 
 \begin{figure}[t]
   \centering
@@ -1183,21 +1189,16 @@ Table~\ref{tab:exp-direct-vs-proxy} quantifies this disagreement.
   \label{fig:exp-direct-vs-proxy-curves}
 \end{figure}
 
-\begin{table}[t]
-\caption{Disagreement between direct and proxy estimators of $\Delta_2^{(D)}$ in the reference setting ($D{=}10$, $\sigma{=}0.02$). Correlation is Pearson $r$ over the $k$-grid.  Relative error is the mean of $|\text{proxy} - \text{direct}|/\text{direct}$.  Slope difference is fitted log-log slope of proxy minus that of direct ($-1.87$).  The proxy slopes are \emph{positive} (criterion increases with $k$), explaining the negative correlations.}
-\label{tab:exp-direct-vs-proxy}
-\begin{center}
-\small
-\begin{tabular}{lccc}
-\toprule
-Estimator pair & Correlation & Mean relative error & Slope difference \\
-\midrule
-Direct vs quadratic MC & $-0.22$ & $\sim\!1.8\!\times\!10^{4}$ & $+2.03$ \\
-Direct vs Gaussian-moment & $-0.21$ & $\sim\!2.0\!\times\!10^{4}$ & $+2.09$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-\end{table}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{proxy_validity.pdf}
+  \caption{
+  Ratio of the Gaussian-moment proxy to the direct subspace criterion as a function of the perturbation scale~$\sigma$, for several values of~$k$.
+  The proxy is near-exact at sufficiently small~$\sigma$ but diverges rapidly once $\sigma$ exceeds a $k$-dependent crossover scale.
+  Dashed gray line: perfect agreement ($\text{ratio}=1$); dotted red line: $1.1{\times}$ threshold.
+  }
+  \label{fig:exp-proxy-validity}
+\end{figure}
 
 \subsection{Sweep over the subspace dimension $D$}
 \label{sec:exp-D-sweep}
@@ -1225,15 +1226,15 @@ These results confirm that $\Delta_2^{(D)}$ is not sensitive to the specific cho
 \label{sec:exp-sigma}
 
 The perturbation scale $\sigma$ controls how locally the criterion probes the landscape around $\mathbf w_k^*$.
-We sweep $\sigma\in\{0.005, 0.01, 0.02, 0.05, 0.1\}$ and evaluate both the direct subspace criterion and the Gaussian-moment proxy at each scale.
+We sweep $\sigma\in\{0.005, 0.01, 0.02, 0.05, 0.1\}$ and evaluate the direct subspace criterion at each scale.
 
-Figure~\ref{fig:exp-sigma-sweep} reports the results.
-The direct criterion (left panel) is remarkably stable across $\sigma\in[0.005, 0.02]$: the curves nearly overlap, with fitted slopes in the range $[-1.94, -1.92]$.
+Figure~\ref{fig:exp-sigma-sweep} reports the direct criterion as a function of $k$ for each $\sigma$.
+The curves are remarkably stable across $\sigma\in[0.005, 0.02]$: they nearly overlap, with fitted slopes in the range $[-1.94, -1.92]$.
 For larger $\sigma\in\{0.05, 0.1\}$, the criterion values decrease slightly (perturbations probe farther from $\mathbf w_k^*$, sampling regions where the increment may partially cancel), and the slopes flatten modestly to ${\approx}-1.84$.
-The Gaussian-moment proxy (right panel) remains several orders of magnitude above the direct criterion at all tested $\sigma$ values.
 
 These findings show that the direct subspace criterion is a stable observable across a range of perturbation scales.
-The insensitivity of the direct criterion to $\sigma$ in the local regime also indicates that the measured landscape deformation is a robust feature of the empirical risk, not an artifact of a particular probing radius.
+The insensitivity of the direct criterion to $\sigma$ in the local regime indicates that the measured landscape deformation is a robust feature of the empirical risk, not an artifact of a particular probing radius.
+Combined with the proxy validity analysis above (Section~\ref{sec:exp-direct-vs-proxy}), this suggests that while any $\sigma$ in $[0.005, 0.02]$ is suitable for the direct criterion, the quadratic proxy requires $\sigma$ orders of magnitude smaller to remain faithful.
 
 \begin{figure}[t]
   \centering
@@ -1302,9 +1303,10 @@ All four subspace families (top, random, bottom, mixed) yield criterion values o
 This is attributable to the dominance of the scalar value gap $a_k^2$ in the squared increment, which masks the directional contributions predicted by the quadratic theory.
 The theoretical extremality of the top-curvature subspace (Lemma~\ref{lemma:extremal-topD}) requires $a_k{=}0$ and $\mathbf c_k{=}\mathbf 0$, conditions not met in practice.
 
-\emph{Quadratic proxy estimators fail quantitatively.}
-The quadratic Monte Carlo and Gaussian-moment estimators overestimate the direct subspace criterion by several orders of magnitude at $\sigma{=}0.02$.
-This indicates that the local quadratic model of the increment does not faithfully capture the true loss-difference field at the tested perturbation scale.
+\emph{Quadratic proxy estimators are valid only in an extremely narrow local regime.}
+A fine-grained sweep over $\sigma$ (Figure~\ref{fig:exp-proxy-validity}) shows that the Gaussian-moment proxy is near-exact when $\sigma$ is sufficiently small (ratio~${\lesssim}1.1$ for $\sigma\leq 0.002$ at $k{=}100$).
+However, the crossover scale $\sigma^*$ shrinks rapidly with $k$: by $k{=}300$, only $\sigma\leq 10^{-4}$ maintains the agreement.
+At the experimentally practical scale $\sigma{=}0.02$, the proxy overestimates the direct criterion by factors of $10^1$ to $10^5$.
 Direct subspace Monte Carlo should therefore be preferred for reliable measurement of $\Delta_2^{(D)}$.
 
 \emph{Eigenspace stability supports geometric interpretation.}
@@ -1327,9 +1329,11 @@ They do not imply that the principal curvature subspace is universally optimal a
 \paragraph{Local quadratic modeling.}
 Our analysis relies on a local quadratic model of the increment field near $\mathbf w_k^*$.
 Accordingly, the theoretical results should be interpreted as local statements about the behavior of the empirical landscape in a neighborhood of a trained solution, rather than as global claims about loss-surface geometry.
-The quadratic proxy estimators introduced in Section~\ref{sec:algo} provide a computationally attractive alternative to direct Monte Carlo, but our experiments reveal that they dramatically overestimate the true criterion at $\sigma{=}0.02$, with errors growing to several orders of magnitude for larger $k$.
-This indicates that the true increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is substantially smoother than its second-order Taylor approximation near $\mathbf w_k^*$, so that the curvature contribution captured by $\mathbf B_k$ does not translate into corresponding variation of the actual loss-difference field.
-This failure is a concrete negative result that motivates the development of better local surrogate models.
+The quadratic proxy estimators introduced in Section~\ref{sec:algo} provide a computationally attractive alternative to direct Monte Carlo.
+Our fine-grained $\sigma$-sweep (Figure~\ref{fig:exp-proxy-validity}) confirms that the proxy is faithful in a sufficiently local regime, validating the theoretical derivation.
+However, the regime of validity is extremely narrow and shrinks with increasing $k$: the crossover scale at which the proxy/direct ratio exceeds~$1.1$ drops from $\sigma\approx 0.002$ at $k{=}100$ to below $10^{-4}$ for $k\geq 300$.
+This is because the curvature energy term scales as $\sigma^4 \|\mathbf B_k\|_F^2$ while the true increment is substantially smoother, so even modest perturbation scales inject spurious quadratic energy.
+Developing better local surrogate models that remain accurate at practical $\sigma$ is an important direction for future work.
 
 \paragraph{Curvature alignment versus universal optimality.}
 The paper argues that top-curvature subspaces are a natural observational design because they align probing with dominant local second-order structure.
@@ -1373,7 +1377,7 @@ We also derived a spectral interpretation in a stable-eigenspace regime and desc
 Experiments on nanoGPT-style transformers in two settings support the following main conclusions.
 First, the curvature-aware subspace criterion preserves the empirical mean-squared decay, with fitted slopes in the range $[-1.5, -1.9]$, robustly across subspace dimensions and perturbation scales.
 Second, at the tested perturbation scales, different subspace families (top-curvature, random, bottom-curvature, mixed) produce criterion values of the same order, because the scalar value gap dominates the directional curvature contribution; the conditions under which the top-curvature subspace is theoretically distinguished are not met in practice.
-Third, the quadratic proxy estimators introduced in Section~\ref{sec:algo} overestimate the direct criterion by several orders of magnitude, indicating that the local quadratic model of the increment does not faithfully approximate the true loss-difference field at the scales examined.
+Third, a fine-grained $\sigma$-sweep shows that the quadratic proxy estimators are in principle valid at extremely small perturbation scales, confirming the theoretical derivation, but the regime of validity shrinks rapidly with $k$ and is too narrow for practical use; at the experimentally useful scale $\sigma{=}0.02$, the proxy overestimates the direct criterion by orders of magnitude.
 Fourth, the leading curvature subspace remains well aligned across adjacent sample sizes (mean overlap~${\sim}0.93$--$0.95$), supporting a stable geometric interpretation.
 
 These results suggest that the primary value of the proposed criterion lies in providing a well-defined, theoretically grounded, and empirically robust curvature-aware observable for local landscape stabilization.
