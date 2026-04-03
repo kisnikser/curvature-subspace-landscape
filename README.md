@@ -1,9 +1,9 @@
-# Curvature Subspaces and the Loss Landscape at Scale
+# Curvature-Subspace Criteria for Local Loss-Landscape Stabilization
 
 [![paper](https://img.shields.io/badge/paper-preprint-red.svg)](paper/main.pdf)
 [![code](https://img.shields.io/badge/code-repository-green.svg)](code/)
 
-This is the official companion repository for the paper **Curvature Subspaces and the Loss Landscape at Scale** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
+This is the official companion repository for the paper **Curvature-Subspace Criteria for Local Loss-Landscape Stabilization** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
 
 <div align="center">
     <img alt="Subspace mean-squared criterion (schematic)" width="520" src="paper/figures/criterion_squared_subspace.png">
@@ -26,7 +26,7 @@ If you find our work helpful, please cite us.
 
 ```bibtex
 @misc{kiselev2026curvaturesubspace,
-    title={Curvature Subspaces and the Loss Landscape at Scale},
+    title={Curvature-Subspace Criteria for Local Loss-Landscape Stabilization},
     author={Kiselev, Nikita and Grabovoy, Andrey},
     year={2026},
     note={Manuscript. NeurIPS submission.}
