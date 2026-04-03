@@ -29,6 +29,7 @@ from criteria import (
     quadratic_form_expectation,
     _get_flat_params,
     _set_flat_params,
+    _summarize_samples,
 )
 from eigenvectors import (
     compute_gradient_vector_lm,
@@ -157,6 +158,55 @@ def random_orthonormal_basis(dim: int, D: int, seed: int, device, dtype):
     mat = torch.randn((dim, D), generator=generator, dtype=dtype)
     q, _ = torch.linalg.qr(mat, mode="reduced")
     return q.to(device=device, dtype=dtype)
+
+
+def bottom_basis(U_full, D):
+    """Return the last-D columns of U_full (bottom eigenspace)."""
+    return U_full[:, -D:]
+
+
+def mixed_basis(U_full, D):
+    """Return a mixed basis: half top, half bottom eigenvectors."""
+    top_half = D // 2
+    bot_half = D - top_half
+    top_part = U_full[:, :top_half]
+    bot_part = U_full[:, -bot_half:]
+    return torch.cat([top_part, bot_part], dim=1)
+
+
+def gaussian_moment_estimator(a_k, c_k, B_k, sigma):
+    """
+    Closed-form Gaussian-moment estimator (eq. in paper):
+      GM = a_k^2 + a_k * sigma^2 * Tr(B_k)
+           + sigma^2 * ||c_k||^2
+           + sigma^4/4 * (2*Tr(B_k^2) + Tr(B_k)^2)
+    """
+    tr_B = torch.trace(B_k).item()
+    tr_B2 = torch.trace(B_k @ B_k).item()
+    c_norm_sq = torch.dot(c_k, c_k).item()
+    gm = (
+        a_k ** 2
+        + a_k * sigma ** 2 * tr_B
+        + sigma ** 2 * c_norm_sq
+        + (sigma ** 4 / 4.0) * (2.0 * tr_B2 + tr_B ** 2)
+    )
+    return gm
+
+
+def quadratic_mc_estimator(a_k, c_k, B_k, sigma, num_samples, device, dtype):
+    """
+    Quadratic Monte Carlo estimator: sample z ~ N(0, sigma^2 I_D),
+    compute (a_k + c_k^T z + 0.5 z^T B_k z)^2 and average.
+    """
+    D = c_k.numel()
+    sq_vals = []
+    for _ in range(num_samples):
+        z = torch.randn(D, device=device, dtype=dtype) * sigma
+        val = a_k + torch.dot(c_k, z).item() + 0.5 * torch.dot(z, B_k @ z).item()
+        sq_vals.append(val ** 2)
+    return _summarize_samples(sq_vals)
+
+
 
 
 def summarize_alignment(true_values, approx_values):
@@ -375,31 +425,22 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
 
         delta2_subspace = {}
         delta2_subspace_stats = {}
-        strategy_comparison = {"hessian": {}, "random": {}}
+        strategy_comparison = {"hessian": {}, "random": {}, "bottom": {}, "mixed": {}}
         refresh_comparison = {"recompute": {}, "freeze": {}}
-        random_basis = random_orthonormal_basis(
+        random_basis_full = random_orthonormal_basis(
             U_full.shape[0],
             max_D,
             seed=seed * 10_000 + k,
             device=device,
             dtype=dtype,
         )
+        ns = int(conf.experiment.delta2_num_samples)
         for D in subspace_dims:
             U_D = U_full[:, :D]
             hessian_stats = compute_delta2_subspace(
-                model,
-                w_k,
-                U_D,
-                x_k,
-                y_k,
-                x_k1,
-                y_k1,
-                sigma=main_sigma,
-                num_samples=int(conf.experiment.delta2_num_samples),
-                device=device,
-                dtype=dtype,
-                microbatch=mb,
-                return_details=True,
+                model, w_k, U_D, x_k, y_k, x_k1, y_k1,
+                sigma=main_sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
             )
             delta2_subspace[str(D)] = hessian_stats["mean"]
             delta2_subspace_stats[str(D)] = hessian_stats
@@ -407,36 +448,32 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
             refresh_comparison["recompute"][str(D)] = hessian_stats
 
             random_stats = compute_delta2_subspace(
-                model,
-                w_k,
-                random_basis[:, :D],
-                x_k,
-                y_k,
-                x_k1,
-                y_k1,
-                sigma=main_sigma,
-                num_samples=int(conf.experiment.delta2_num_samples),
-                device=device,
-                dtype=dtype,
-                microbatch=mb,
-                return_details=True,
+                model, w_k, random_basis_full[:, :D], x_k, y_k, x_k1, y_k1,
+                sigma=main_sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
             )
             strategy_comparison["random"][str(D)] = random_stats
 
+            U_bot = bottom_basis(U_full, D)
+            bottom_stats = compute_delta2_subspace(
+                model, w_k, U_bot, x_k, y_k, x_k1, y_k1,
+                sigma=main_sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
+            )
+            strategy_comparison["bottom"][str(D)] = bottom_stats
+
+            U_mix = mixed_basis(U_full, D)
+            mixed_stats = compute_delta2_subspace(
+                model, w_k, U_mix, x_k, y_k, x_k1, y_k1,
+                sigma=main_sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
+            )
+            strategy_comparison["mixed"][str(D)] = mixed_stats
+
             frozen_stats = compute_delta2_subspace(
-                model,
-                w_k,
-                frozen_hessian_basis[:, :D],
-                x_k,
-                y_k,
-                x_k1,
-                y_k1,
-                sigma=main_sigma,
-                num_samples=int(conf.experiment.delta2_num_samples),
-                device=device,
-                dtype=dtype,
-                microbatch=mb,
-                return_details=True,
+                model, w_k, frozen_hessian_basis[:, :D], x_k, y_k, x_k1, y_k1,
+                sigma=main_sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
             )
             refresh_comparison["freeze"][str(D)] = frozen_stats
 
@@ -476,6 +513,36 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
             dtype=dtype,
             microbatch=mb,
         )
+
+        gm_value = gaussian_moment_estimator(a_k, c_k, B_k, main_sigma)
+        quad_mc_stats = quadratic_mc_estimator(
+            a_k, c_k, B_k, main_sigma,
+            num_samples=int(conf.experiment.alignment_num_samples),
+            device=device, dtype=dtype,
+        )
+
+        sigma_subspace_sweep = {}
+        for sigma in sigma_values:
+            _set_flat_params(model, w_k)
+            direct_stats = compute_delta2_subspace(
+                model, w_k, U_main, x_k, y_k, x_k1, y_k1,
+                sigma=sigma, num_samples=ns,
+                device=device, dtype=dtype, microbatch=mb, return_details=True,
+            )
+            gm_val = gaussian_moment_estimator(a_k, c_k, B_k, sigma)
+            qmc = quadratic_mc_estimator(
+                a_k, c_k, B_k, sigma,
+                num_samples=int(conf.experiment.alignment_num_samples),
+                device=device, dtype=dtype,
+            )
+            sigma_subspace_sweep[f"{sigma:.4f}"] = {
+                "direct_mean": direct_stats["mean"],
+                "direct_stats": direct_stats,
+                "gm_value": gm_val,
+                "quadMC_mean": qmc["mean"],
+                "quadMC_stats": qmc,
+            }
+
         eigenspace_drift = subspace_overlap(U_full, U_full_k1, overlap_dims)
 
         row = {
@@ -500,6 +567,9 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
             "eigenspace_drift": eigenspace_drift,
             "quadratic_alignment": quadratic_alignment,
             "term_contributions": term_contributions,
+            "gm_estimator": gm_value,
+            "quadMC_estimator": quad_mc_stats,
+            "sigma_subspace_sweep": sigma_subspace_sweep,
             "value_gap_at_wk": a_k,
             "gradient_gap_norm": grad_diff.norm().item(),
             "compressed_hessian_gap_fro": torch.linalg.norm(B_k).item(),
@@ -529,7 +599,7 @@ def run_single_experiment(conf, setting_name, primary, description, seed, device
     return results
 
 
-def main(conf=None):
+def main(conf=None, setting_filter=None, seed_filter=None, output_suffix=None):
     if conf is None:
         conf_path = Path(__file__).parent / "config.yaml"
         conf = OmegaConf.load(conf_path)
@@ -544,10 +614,14 @@ def main(conf=None):
     all_results = []
     base_seed = conf.common.seed
     for setting_name, primary, description, setting_conf in build_run_matrix(conf):
+        if setting_filter and setting_name != setting_filter:
+            continue
         print(f"Running setting {setting_name}")
         setting_conf.data.text_path = str(default_text_path(setting_conf))
         for s in range(int(setting_conf.experiment.num_seeds)):
             seed = base_seed + s
+            if seed_filter is not None and seed != seed_filter:
+                continue
             print(f"  Running experiment with seed {seed}")
             results = run_single_experiment(
                 setting_conf,
@@ -562,7 +636,10 @@ def main(conf=None):
 
     out_dir = _repo_root / conf.common.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "landscape_experiments.json"
+    fname = "landscape_experiments.json"
+    if output_suffix:
+        fname = f"landscape_experiments_{output_suffix}.json"
+    out_path = out_dir / fname
 
     with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
@@ -571,4 +648,14 @@ def main(conf=None):
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--setting", type=str, default=None,
+                        help="Run only this named setting from run_matrix")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Run only this specific seed")
+    parser.add_argument("--suffix", type=str, default=None,
+                        help="Output file suffix for parallel runs")
+    args = parser.parse_args()
+    main(setting_filter=args.setting, seed_filter=args.seed,
+         output_suffix=args.suffix)

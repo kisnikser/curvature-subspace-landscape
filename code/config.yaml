@@ -52,11 +52,11 @@ experiment:
 
   delta2_sigma: 0.02
   delta2_num_samples: 100
-  sigma_values: [0.01, 0.02, 0.05]
+  sigma_values: [0.005, 0.01, 0.02, 0.05, 0.1]
 
-  subspace_dims: [5, 10, 20]
+  subspace_dims: [5, 10, 20, 50]
   main_subspace_dim: 10
-  overlap_dims: [5, 10, 20]
+  overlap_dims: [5, 10, 20, 50]
   top_eigenvec_iters: 30
   top_eigenvec_tol: 1.0e-3
   alignment_num_samples: 32
@@ -82,6 +82,9 @@ run_matrix:
       train_epochs: 20
       hessian_max_sequences: 64
       sample_sizes: [100, 150, 200, 300, 400, 500, 700, 1000, 1500, 2000, 3000, 4000, 5000]
+      sigma_values: [0.005, 0.01, 0.02, 0.05, 0.1]
+      subspace_dims: [5, 10, 20, 50]
+      overlap_dims: [5, 10, 20, 50]
 
   - name: wikitext2_medium
     primary: false
@@ -101,3 +104,6 @@ run_matrix:
       train_epochs: 12
       hessian_max_sequences: 48
       sample_sizes: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
+      sigma_values: [0.005, 0.01, 0.02, 0.05, 0.1]
+      subspace_dims: [5, 10, 20, 50]
+      overlap_dims: [5, 10, 20, 50]
