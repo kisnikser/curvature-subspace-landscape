@@ -822,13 +822,55 @@ setup cost $+\ \mathcal O(D^2)$
 
 \section{Experiments}\label{sec:experiments}
 
-To verify the theoretical estimates obtained, we conducted a detailed empirical study...
+To verify the theoretical estimates obtained, we conducted a detailed empirical study.
 
-\paragraph{Quadratic proxy.} Here we discover at which $\sigma$ values the quadratic Taylor approximation holds. 
+\paragraph{Quadratic proxy.} Here we discover at which $\sigma$ values the quadratic Taylor approximation holds. We consider an empirical loss function on first $k$ samples and calculate $\mathcal{L}_k(\mathbf{w}_k^* + \boldsymbol{\delta}) - \mathcal{L}_k(\mathbf{w}_k^*)$, comparing it to its quadratic Taylor approximation. Averaging it across multiple random seeds, we plot the mean and standard deviation on Fig.~\ref{fig:exp-1}, that shows that even approximation error is never zero, it is relatively small when $\sigma < 10^{-3}$. We then use these values in our experiments.
 
-\paragraph{Estimators Comparison.} Compare three above estimators with different $\sigma$ and $D$ values across $k$. Some plots --- also for compute and time.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\linewidth]{quadratic_sigma_loggrid_1e7_1e1_plot_abs.pdf}
+    \caption{TODO}
+    \label{fig:exp-1}
+\end{figure}
 
-\paragraph{Previous and new criteria.} Compare $\Delta_1$, $\Delta_2$, $\Delta_2^{(D)}$ in convergence rates and their correlation with validation loss and accuracy (or other quality metrics).
+\paragraph{Estimators Comparison.} Compare three above estimators with different $\sigma$ and $D$ values across $k$. Some plots --- also for compute and time. Here we first compare criterions on computational complexity and time in Table~\ref{tab:exp-2}, which shows that Gaussian moment estimator is the most efficient one. Also, we compare them in terms of approximation error, assuming direct one to be the most precice one. Then, on Fig.~\ref{fig:exp-3} we see that all methods are robust on MC sample count (Gm has closed form btw). Finally, on Fig.~\ref{fig:exp-4} we compare GM estimator with Direct MC, and see that inside $\sigma < 10^{-3}$ and across different subspace dimension $D$ relative error is less than $1\%$, giving us a robust tool to measure landscape convergence without complex calculations of direct estimator.
+
+\begin{table}[t]
+\caption{Comparison of estimators for local landscape stabilization criteria}
+\label{tab:exp-2}
+\begin{center}
+\small
+\begin{tabular}{p{3.0cm} p{2.5cm} p{2.0cm} p{3.0cm}}
+    \toprule
+    \multicolumn{1}{c}{\bf Estimator} &
+    \multicolumn{1}{c}{\bf Stage I} &
+    \multicolumn{1}{c}{\bf Stage II} &
+    \multicolumn{1}{c}{\bf Stage III}
+    \\
+    \midrule
+    Direct MC & $17.53 \pm 0.53$ & \textemdash{} & $2.197 \pm 0.0126$ \\
+    Quadratic MC & $17.53 \pm 0.53$ & $1.777 \pm 0.0143$ & $0.003684 \pm 5.04e-05$ \\
+    Gaussian moment & $17.53 \pm 0.53$ & $1.777 \pm 0.0143$ & $0.0001223 \pm 2.95e-06$ \\
+    \bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_scurve.pdf}
+    \caption{TODO}
+    \label{fig:exp-3}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_heatmap.pdf}
+    \caption{TODO}
+    \label{fig:exp-4}
+\end{figure}
+
+\paragraph{Previous and new criteria.} Compare $\Delta_1$, $\Delta_2$, $\Delta_2^{(D)}$ in convergence rates and their correlation with validation loss and accuracy (or other quality metrics). We cnange $k$, train the model on these data and then calculate all criteria and validation loss and perplexity. All graphs show tendance to zero, but the most correlation with accuracy improvement has our proposed principal Hessian subspace criterion (probably, because the exps didn't finished yet). Here we also want to show that namely top-D Hessian eigenvectors are the most representative, not the bottom-D, or mixed-D, or random-D vectors (but how to show that?).
 
 \section{Discussion and limitations}
 \label{sec:discussion}
