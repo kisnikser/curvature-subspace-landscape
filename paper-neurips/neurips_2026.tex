@@ -99,8 +99,7 @@
 
 
 \begin{abstract}
-    % Scaling laws of modern deep neural networks are used for compute-optimal model and data size increasing. They tend to be highly valitated in practice, however theoretical foundations of them is poorly explored. In this paper, we propose a new foundational framework of loss landscape stabilization, in which adding new training samples is observed to merely change the loss surface in local minima neighborhoods. We show that previously explored one-point and squared criteria cannot fully describe the local behaviuor of the loss function, and thus propose new subspace-squared criterion, which is calculated in principal Hessian subspace. Empirial results show that subspace criteria depends on the choice of their basis, and that proposed one has the most information about the loss curvature. We explore three different algorithms for this criterion estimation in practice, and show effectiveness and robustntess of them in the neighbourhood, where quadratic approximation is valid. We also check application of proposed framework for sample size estimation problem.
-    Deep neural loss landscapes are highly anisotropic: much of their meaningful local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but did not place them in a unified framework and did not exploit local curvature structure, potentially averaging the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, with curvature dependence governed by the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on a nanochat decoder-only transformer show that the Gaussian-moment proxy estimator faithfully tracks the direct criterion across subspace dimensions $D\in[1,100]$ and perturbation scales within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while diverging outside it. The proxy is approximately $18{,}000\times$ faster than direct Monte Carlo in the evaluation stage after subspace construction. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization and clarify the current limitations of this observational design.
+    Deep neural network loss landscapes exhibit strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections. We study how such landscapes stabilize as the training set grows one sample at a time. Prior criteria measure landscape change either pointwise or uniformly across the full parameter space, distributing weight equally across directions that contribute negligibly to landscape variation, and do not form a unified framework. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we prove that this criterion preserves the same mean-squared $\mathcal{O}(k^{-2})$ convergence rate as the full-space criterion, with curvature dependence governed by the subspace dimension $D$ rather than the ambient parameter dimension $N$. We also derive a spectral closed form under a stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on a nanochat decoder-only transformer show that the Gaussian-moment proxy estimator faithfully tracks the direct criterion across subspace dimensions $D\in[1,100]$ and perturbation scales within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while diverging outside it. In the evaluation stage after subspace construction, the proxy is approximately $18{,}000\times$ faster than direct Monte Carlo. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -117,50 +116,49 @@
     \includegraphics[width=\linewidth]{criterion_squared_subspace.pdf}\\[0.3em]
     \small (b) Principal Hessian subspace $\mathcal{S}_D$ squared criterion $\Delta_2^{(D)}$
   \end{minipage}
-  \caption{\textbf{Loss landscape stabilization criteria.} (a) General framework for convergence observation with arbitrary probing distribution $q(\mathbf{w})$, and (b) Curvature-aware criterion, which capture loss increment field on a principal Hessian subspace along top-curvature directions.}
+  \caption{\textbf{Loss landscape stabilization criteria.} (a) General framework with arbitrary probing distribution $q(\mathbf{w})$; previously studied pointwise and full-space criteria arise as special cases. (b) The proposed curvature-aware criterion $\Delta_2^{(D)}$, which probes the loss increment field on the principal Hessian eigenspace $\mathcal{S}_D$ spanned by the top-$D$ curvature directions.}
   \label{fig:overview}
 \end{figure}
 
 Training in deep learning depends not only on the value of the empirical risk at a solution, but also on the local geometry of the loss surface around that solution.
-A large empirical literature studies this geometry through loss-landscape visualizations, Hessian spectra, and local sharpness, showing that curvature in modern neural networks is highly anisotropic: a relatively small number of directions often carry most of the meaningful second-order structure, while much of parameter space is weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
+A large empirical literature studies this geometry through loss-landscape visualizations, Hessian spectra, and local sharpness, consistently revealing strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections, while much of parameter space is weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
 This raises a natural question under sample growth: as training examples are added one by one, how does the local empirical landscape change near a trained solution, and how should that change be observed?
 
 Classical statistical learning theory studies convergence of empirical risk to population risk~\citep{vapnik1998statistical,shalev2014understanding}, and algorithmic stability bounds the sensitivity of learned predictors to perturbations of the training set~\citep{bousquet2002stability,feldman2019high,bousquet2020sharper}.
 These frameworks are foundational, but they do not directly describe how local geometric quantities---such as gradients, Hessians, and their leading eigenspaces---change when one additional sample is incorporated.
 More recently,~\citet{author:delta1,author:delta2} introduced local criteria for the increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ near a minimizer $\mathbf w_k^*$ of the $k$-sample empirical risk.
 In particular, the one-point criterion $\Delta_1$ yields $\mathcal O(k^{-1})$ decay, while the full-space mean-squared criterion $\Delta_2$ yields $\mathcal O(k^{-2})$ decay.
+However, neither criterion is placed in a unified framework, nor do they exploit the known curvature structure of the loss landscape.
 
 In this paper, we place such criteria in a unified framework.
-The increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is a scalar field over parameter space, and any aggregated criterion for it depends not only on the aggregation order, but also on the perturbations used to probe local change.
+The increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is a scalar field over parameter space, and any aggregated criterion for it depends not only on the aggregation order, but also on the probing distribution used to observe local change.
 This makes local landscape stabilization an \emph{observational} problem as well as a convergence problem.
-Within this framework, previously studied pointwise and isotropic criteria appear as special cases corresponding to different probing laws, and the choice of probing distribution becomes part of the scientific question rather than merely part of the estimator.
+Within this framework, the previously studied pointwise and isotropic criteria appear as special cases corresponding to different probing laws, and the choice of probing distribution becomes part of the scientific question rather than merely an estimation detail.
 
-We study a curvature-aware specialization of this framework: the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:overview}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$.
-The purpose of this restriction is not merely dimensionality reduction, but geometry-aligned probing of the increment field near a trained solution.
-Thus, $\Delta_2^{(D)}$ should be read as a curvature-aware observable of local landscape stabilization.
+We study a curvature-aware specialization of this framework: the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:overview}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$, concentrating observation on the directions that carry the dominant second-order structure of the loss.
 
 Our theoretical analysis studies the increment field near $\mathbf w_k^*$ under a local quadratic model.
-We derive a low-dimensional representation of the subspace criterion and show that $\Delta_2^{(D)}$ preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with a curvature-dependent term governed by the subspace dimension $D$ rather than the ambient dimension $N$.
+We derive a low-dimensional representation of the subspace criterion and prove that $\Delta_2^{(D)}$ preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with the curvature-dependent term governed by the subspace dimension $D$ rather than the ambient dimension $N$.
 Under an additional stable-eigenspace assumption, the compressed Hessian difference admits a spectral closed form in terms of leading eigenvalue increments.
-The theory is therefore not a justification for using a subspace in general, but a local guarantee for this particular curvature-aware design.
+These results are local guarantees for this specific curvature-aware design, not universal statements about the loss landscape.
 
 We also develop scalable estimators for $\Delta_2^{(D)}$ based on Hessian--vector products, top-$D$ eigenspace extraction, direct subspace Monte Carlo, and quadratic proxy estimators.
-This enables empirical comparison between pointwise, isotropic, and curvature-aware measurements of landscape stabilization.
-In experiments on a nanochat decoder-only transformer, we test the fidelity of the quadratic proxy estimators and compare the three estimators for $\Delta_2^{(D)}$ across subspace dimensions and perturbation scales.
-The experiments confirm that the Gaussian-moment estimator is accurate within the valid quadratic regime ($\sigma\lesssim10^{-3}$) across all tested $D\in[1,100]$, and reveal that proxy accuracy degrades rapidly outside this regime.
+This enables empirical comparison of pointwise, isotropic, and curvature-aware measurements of landscape stabilization on equal footing.
+In experiments on a nanochat decoder-only transformer, we establish the valid operating regime of the quadratic proxy and compare the three estimators across subspace dimensions and perturbation scales.
+The Gaussian-moment estimator is accurate across all tested $D\in[1,100]$ within the valid quadratic regime ($\sigma\lesssim10^{-3}$), and proxy accuracy degrades rapidly outside this regime.
 
 \paragraph{Contributions.} Our contributions can be summarized as follows:
 \begin{itemize}
-    \item We present a unified loss landscape stabilization criterion $\Delta_p$, which aggregates a loss function difference when adding one more training sample over a probing distribution $q(\mathbf{w})$.
-    \item Within this framework, we propose a curvature-aware subspace squared criterion $\Delta_2^{(D)}$, which probes an increment in the principal Hessian subspace near local minima $\mathbf{w}_k^*$, and prove its $\mathcal{O}(k^{-2})$ convergence rate when sample size $k$ tends to infinity.
-    \item We empirically validate three estimators---direct Monte Carlo, Quadratic MC, and the closed-form Gaussian-moment (GM) estimator---and show that GM achieves accuracy within $\sigma\lesssim10^{-3}$ while being approximately $18{,}000\times$ faster than direct MC in the evaluation stage.
-    \item We identify value-gap dominance as a key empirical finding: the scalar term $a_k^2 = \bigl(\mathcal{L}_{k+1}(\mathbf{w}_k^*)-\mathcal{L}_k(\mathbf{w}_k^*)\bigr)^2$ dominates $\Delta_2^{(D)}$ at the tested scales, masking directional curvature differences and clarifying a fundamental design challenge for curvature-aware landscape criteria.
+    \item We introduce a unified family of local landscape stabilization criteria $\Delta_p$ parametrized by an aggregation order $p$ and a probing distribution $q(\mathbf{w})$, within which previously studied pointwise and full-space criteria arise as special cases.
+    \item Within this framework, we propose the curvature-aware subspace criterion $\Delta_2^{(D)}$, which probes the loss increment in the principal Hessian eigenspace near a local minimizer $\mathbf{w}_k^*$, and prove that it attains the same $\mathcal{O}(k^{-2})$ mean-squared convergence rate as the full-space criterion, with curvature dependence scaling through $D$ rather than the ambient dimension $N$.
+    \item We derive a spectral closed form for $\Delta_2^{(D)}$ under a stable-eigenspace assumption, and prove that the top-$D$ eigenspace maximizes the pure quadratic stabilization signal within the eigenspace-aligned family.
+    \item We propose and compare three scalable estimators---direct Monte Carlo, Quadratic MC, and the closed-form Gaussian-moment (GM) estimator---and show empirically that the GM estimator achieves faithful accuracy within the valid quadratic regime ($\sigma\lesssim10^{-3}$) while being approximately $18{,}000\times$ faster than direct MC in the evaluation stage after subspace construction.
 \end{itemize}
 
 \section{Related Work}\label{sec:related}
 
 \paragraph{Loss landscapes, Hessian spectra, and sample-growth sensitivity.}
-Studies of neural loss geometry consistently reveal strong spectral anisotropy: most meaningful second-order structure concentrates in a small number of directions, with the bulk of parameter space nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
+Studies of neural loss geometry consistently reveal strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections and the bulk of parameter space nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
 Analyses of eigenspaces, architectural structure, and random-matrix effects reinforce the view that local curvature is effectively low-dimensional~\citep{wu2021dissecting,singh2023hessian,baskerville2021rmt,meshkov2024convnets}.
 Classical learning theory and algorithmic stability address sample sensitivity at the level of risks or predictors~\citep{vapnik1998statistical,shalev2014understanding,bousquet2002stability,feldman2019high,bousquet2020sharper}, but not the local geometry of the landscape.
 The direct technical precursors are the local increment criteria of~\citet{author:delta1,author:delta2}: the one-point criterion $\Delta_1$ with $\mathcal O(k^{-1})$ decay and the full-space mean-squared criterion $\Delta_2$ with $\mathcal O(k^{-2})$ decay.
@@ -218,8 +216,7 @@ We therefore introduce the following unified family of local stabilization crite
 \, q(\mathbf w)\, d\mathbf w,
 \end{equation}
 where $q$ is a probing distribution concentrated near a trained solution such as $\mathbf w_k^*$.
-This formulation makes explicit that a stabilization criterion is determined not only by the aggregation order $p$, but also by the probing law $q$.
-In particular, $q$ specifies how local landscape change is observed by selecting which regions and directions of parameter space are emphasized.
+Thus a stabilization criterion is determined jointly by the aggregation order $p$ and the probing law $q$, which selects which regions and directions of parameter space are emphasized.
 
 \paragraph{Scope and specialization of the framework.}
 The formulation \eqref{eq:general-p-criterion} places several notions of local landscape stabilization in a common framework.
@@ -230,20 +227,10 @@ Previously studied criteria~\citep{author:delta1,author:delta2} arise as special
 \Delta_2(k+1) &= \int_{\mathbb{R}^N}\bigl(\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr)^2 q(\mathbf{w})\,d\mathbf{w}
 &&(p=2,\; q=\mathcal{N}(\mathbf{w}_k^*,\sigma^2\mathbf{I}_N)).\label{eq:delta2-special}
 \end{align}
-This unified language makes it possible to compare pointwise, isotropic, and curvature-aware notions of stabilization within a single formal setup.
-Our focus is on neighborhoods of trained solutions because minima encode not only achieved empirical risk values, but also the local geometry induced by training.
-The resulting question is whether this local geometry---including loss values, gradients, curvature, and dominant curvature directions---becomes less sensitive to one-sample growth as $k$ increases.
 In the present paper, we study a curvature-aware specialization of \eqref{eq:general-p-criterion} obtained by restricting the probing law to a subspace aligned with dominant local curvature near $\mathbf w_k^*$.
 
 \section{Method}
 \label{sec:method}
-
-\paragraph{Curvature-aware observational design.}
-The unified criterion \eqref{eq:general-p-criterion} leaves open a central question: along which perturbations should local landscape change be observed?
-Because the increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is a scalar field over parameter space, different probing laws emphasize different regions and directions of the local landscape.
-In high-dimensional models, isotropic full-space probing may average over many weakly informative directions and thereby obscure the dominant local second-order structure near $\mathbf w_k^*$.
-We therefore adopt a curvature-aware probing design and restrict observation to a subspace aligned with the dominant local curvature near a trained solution.
-The goal is not merely dimensionality reduction, but a mean-squared stabilization criterion aligned with the local second-order geometry induced by training.
 
 \paragraph{Principal curvature subspace.}
 Let $\mathbf w_k^*$ be a local minimizer of $\mathcal L_k$, and let $\mathbf H^{(k)}(\mathbf w_k^*) = \mathbf U \mathbf \Lambda \mathbf U^\top$ be the eigendecomposition of the empirical Hessian at $\mathbf w_k^*$, with eigenvalues ordered as $\lambda_1^{(k)} \ge \lambda_2^{(k)} \ge \cdots \ge \lambda_N^{(k)}$. Let $\mathbf U_D=[\mathbf u_1,\dots,\mathbf u_D]$ denote the matrix of the first $D$ eigenvectors, and define $\mathcal S_D=\operatorname{Im}(\mathbf U_D)$ to be the corresponding $D$-dimensional \emph{principal curvature subspace}.
@@ -271,12 +258,7 @@ Throughout the paper, we parameterize this affine subspace as
 \]
 so that $\Delta_2^{(D)}(k+1)$ measures the mean-squared increment under Gaussian perturbations restricted to the principal curvature subspace.
 
-\paragraph{Interpretation and relation to earlier criteria.}
-The criterion $\Delta_2^{(D)}$ is not intended merely as a low-dimensional approximation to the full-space criterion $\Delta_2$.
-It defines a different probing design: instead of averaging the increment isotropically in $\mathbb R^N$, it probes stabilization in directions aligned with dominant local curvature near $\mathbf w_k^*$.
-The previously studied one-point criterion $\Delta_1$ \eqref{eq:delta1-special} and the full-space mean-squared criterion $\Delta_2$ \eqref{eq:delta2-special} are explicit special cases of this framework~\citep{author:delta1,author:delta2}.
-Thus, pointwise, isotropic, and curvature-aware criteria can be compared within one common formal setup.
-All three are illustrated in Fig.~\ref{fig:criteria-overview}.
+All three criteria---$\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$---are illustrated in Fig.~\ref{fig:criteria-overview}.
 
 \begin{figure}[t]
   \centering
@@ -311,9 +293,7 @@ All three are illustrated in Fig.~\ref{fig:criteria-overview}.
 \section{Theoretical analysis}
 \label{sec:theory}
 
-We analyze $\Delta_2^{(D)}$ through the local behavior of the increment field $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ near $\mathbf w_k^*$.
-Our goal is to derive a local quadratic representation of this field and to show that, under this model, the curvature-aware criterion preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion.
-Thus, the results below should be read as local guarantees for the subspace criterion rather than as global statements about the loss landscape.
+We analyze $\Delta_2^{(D)}$ under a local quadratic model of the increment field $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ near $\mathbf w_k^*$; all results are local guarantees rather than global statements.
 
 \paragraph{Exact increment under one-sample growth.}
 Adding one training example $(\mathbf x_{k+1}, \mathbf y_{k+1})$ to $\mathfrak D_k = \{(\mathbf x_i, \mathbf y_i)\}_{i=1}^k$ gives the exact identity
@@ -323,7 +303,7 @@ Adding one training example $(\mathbf x_{k+1}, \mathbf y_{k+1})$ to $\mathfrak D
 =
 \frac{1}{k+1}\Bigl(\ell_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)\Bigr).
 \end{equation}
-Thus, local landscape stabilization can be studied through the decay of the deformation induced by one additional sample.
+The factor $(k+1)^{-1}$ is what drives the $\mathcal O(k^{-2})$ decay of the squared criterion: squaring and integrating over the probing distribution yields a bound proportional to $(k+1)^{-2}$ whenever the per-example quantities $\ell_{k+1}$ and $\mathcal L_k$ remain bounded.
 
 \paragraph{Local quadratic model.}
 Fix $\mathbf w_0\in\mathbb R^N$ and assume that $\mathcal L_k$ and $\mathcal L_{k+1}$ are twice continuously differentiable in a neighborhood of $\mathbf w_0$.
@@ -822,30 +802,29 @@ Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is s
 \section{Discussion and limitations}
 \label{sec:discussion}
 
-The main contribution of this paper is not a new asymptotic law, but a unified framework for local stabilization criteria and a curvature-aware way of probing the increment field under sample growth.
-The theory shows that the subspace criterion is compatible with the same mean-squared $\mathcal O(k^{-2})$ regime as the full-space criterion under a local quadratic model, but it does not imply universal optimality of the top-curvature subspace.
+The central contribution of this paper is a unified framework for local stabilization criteria together with a curvature-aware probing design for the loss increment field under sample growth.
+The theory establishes that $\Delta_2^{(D)}$ attains the same mean-squared $\mathcal O(k^{-2})$ convergence rate as the full-space criterion under a local quadratic model, with curvature dependence scaling through the subspace dimension $D$ rather than the ambient dimension $N$; it does not claim universal optimality of the top-curvature subspace beyond this local regime.
 
-The main limitations are also clear.
-First, the analysis is local: all guarantees are derived under a quadratic approximation near $\mathbf w_k^*$.
-Second, although the top-curvature subspace is geometrically natural, the experiments show that at the tested perturbation scales different subspace families remain empirically similar because the scalar value-gap term dominates the criterion.
-Third, the quadratic proxy estimators are accurate only in an extremely local regime, which makes direct subspace Monte Carlo the more reliable estimator in practice.
+The main limitations are as follows.
+First, the analysis is local: all theoretical guarantees are derived under a quadratic approximation of the loss near $\mathbf w_k^*$, and do not carry over to the global landscape.
+Second, the quadratic proxy estimators are accurate only in an extremely local regime ($\sigma\lesssim10^{-3}$); outside this regime, direct subspace Monte Carlo is the more reliable estimator.
+Third, the experiments are conducted on a single nanochat decoder-only transformer, and it remains to be verified whether the valid proxy regime and the relative estimator performance transfer to other architectures and scales.
 
-Our experiments also remain limited in scope: they establish the picture on a single nanochat decoder-only transformer rather than across architectures and domains.
-More broadly, the paper suggests that stabilization criteria should be understood not only through what they aggregate, but also through how they probe local landscape change.
-Natural next steps are to design criteria that suppress the scalar value-gap term, develop richer local surrogates beyond the quadratic approximation, and test the same framework in larger and more diverse models.
+More broadly, the paper argues that stabilization criteria should be understood not only through what they aggregate, but also through how they probe local landscape change---the choice of probing distribution is itself part of the scientific question.
+Natural next steps include developing richer local surrogates beyond the quadratic approximation, exploring non-Gaussian and data-dependent probing distributions within the unified framework, and evaluating the criterion across larger and more diverse models.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced a unified framework for local loss-landscape stabilization under sample growth and studied a curvature-aware mean-squared criterion obtained by restricting probing to the top-$D$ eigenspace of the empirical Hessian near a trained solution.
+We introduced a unified framework for local loss-landscape stabilization under sample growth and proposed a curvature-aware mean-squared criterion $\Delta_2^{(D)}$ that probes the loss increment field in the top-$D$ eigenspace of the empirical Hessian near a trained solution.
 
-Under a local quadratic model, we showed that this criterion preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with curvature dependence scaling through the subspace dimension $D$.
-We also derived a spectral special case and described scalable estimators for both the true criterion and its quadratic surrogate.
+Under a local quadratic model, we proved that $\Delta_2^{(D)}$ attains the same $\mathcal O(k^{-2})$ mean-squared convergence rate as the full-space criterion, with curvature dependence governed by $D$ rather than the ambient dimension $N$.
+We further derived a spectral closed form under a stable-eigenspace assumption, proved an extremality property of the top-$D$ eigenspace within the eigenspace-aligned family, and described three scalable estimators for both the true criterion and its quadratic surrogate.
 
-Empirically, on nanochat, the GM estimator faithfully tracks Direct~MC across all tested subspace dimensions $D\in[1,100]$ and perturbation scales in the valid quadratic regime.
-At the same time, quadratic proxy estimators are reliable only in an extremely local regime ($\sigma\lesssim10^{-3}$), beyond which the GM estimator diverges from Direct~MC.
+Empirically, the Gaussian-moment estimator faithfully tracks direct Monte Carlo across all tested subspace dimensions $D\in[1,100]$ within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while being approximately $18{,}000\times$ faster in the evaluation stage after subspace construction.
+Outside this regime, proxy accuracy degrades rapidly, and direct subspace Monte Carlo is the reliable estimator of choice.
 
-Taken together, these results position $\Delta_2^{(D)}$ as a well-defined curvature-aware observable of local landscape stabilization and clarify both its usefulness and its limits.
+Taken together, these results establish $\Delta_2^{(D)}$ as a well-defined, theoretically grounded, and computationally tractable curvature-aware observable of local landscape stabilization.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
