@@ -1,12 +1,13 @@
 # Curvature-Subspace Criteria for Local Loss-Landscape Stabilization
 
 [![paper](https://img.shields.io/badge/paper-preprint-red.svg)](paper/main.pdf)
-[![code](https://img.shields.io/badge/code-repository-green.svg)](code/)
+[![nanochat](https://img.shields.io/badge/nanochat-code-blue.svg)](code/README.md)
+[![landscape code](https://img.shields.io/badge/landscape-code--old-green.svg)](code-old/README.md)
 
 This is the official companion repository for the paper **Curvature-Subspace Criteria for Local Loss-Landscape Stabilization** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
 
 <div align="center">
-    <img alt="Subspace mean-squared criterion (schematic)" width="520" src="paper/figures/criterion_squared_subspace.png">
+    <img alt="Subspace mean-squared criterion (schematic)" width="520" src="paper/figures-old/criterion_squared_subspace.png">
 </div>
 
 <br>
@@ -17,7 +18,8 @@ This is the official companion repository for the paper **Curvature-Subspace Cri
 
 This repository is structured as follows:
 
-- **`code`** — experiment code and plotting; see [`code/README.md`](code/README.md).
+- **`code`** — [nanochat](https://github.com/karpathy/nanochat) (vendored copy without nested `.git`); see [`code/README.md`](code/README.md). Use `uv` as in upstream. Data and checkpoints default to **`code/.nanochat/`** (override with `NANOCHAT_BASE_DIR`); that directory is gitignored.
+- **`code-old`** — original paper experiments (nanoGPT-style LM, Δ metrics, plotting); see [`code-old/README.md`](code-old/README.md). Run scripts from the repo root with `python code-old/run_experiments.py`, etc.
 - **`paper`** — preprint [`paper/main.pdf`](paper/main.pdf) and LaTeX sources (`main.tex`, `references.bib`, NeurIPS style).
 
 ## Citation

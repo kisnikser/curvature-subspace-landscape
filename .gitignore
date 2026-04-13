@@ -2,9 +2,12 @@
 .claude
 .cursor
 
-# Experiment outputs (reproducible from code/)
+# nanochat caches (tokenizer, ClimbMix shards, checkpoints) — default: code/.nanochat/
+code/.nanochat/
+
+# Experiment outputs (reproducible from code-old/)
 output/
-code/output/
+code-old/output/
 *.aux
 *.bbl
 *.blg
