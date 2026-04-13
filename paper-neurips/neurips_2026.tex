@@ -100,7 +100,7 @@
 
 \begin{abstract}
     % Scaling laws of modern deep neural networks are used for compute-optimal model and data size increasing. They tend to be highly valitated in practice, however theoretical foundations of them is poorly explored. In this paper, we propose a new foundational framework of loss landscape stabilization, in which adding new training samples is observed to merely change the loss surface in local minima neighborhoods. We show that previously explored one-point and squared criteria cannot fully describe the local behaviuor of the loss function, and thus propose new subspace-squared criterion, which is calculated in principal Hessian subspace. Empirial results show that subspace criteria depends on the choice of their basis, and that proposed one has the most information about the loss curvature. We explore three different algorithms for this criterion estimation in practice, and show effectiveness and robustntess of them in the neighbourhood, where quadratic approximation is valid. We also check application of proposed framework for sample size estimation problem.
-    Deep neural loss landscapes are highly anisotropic: much of their meaningful local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but did not place them in a unified framework and did not exploit local curvature structure, potentially averaging the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, with curvature dependence governed by the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on a nanochat decoder-only transformer show that the Gaussian-moment proxy estimator faithfully tracks the direct criterion across subspace dimensions $D\in[1,100]$ and perturbation scales within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while diverging outside it. The proxy is approximately $18{,}000\times$ faster than direct Monte Carlo in the evaluation stage after subspace construction. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization and clarify the current limitations of this observational design.
+    Deep neural loss landscapes are highly anisotropic: much of their meaningful local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but did not place them in a unified framework and did not exploit local curvature structure, potentially averaging the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, with curvature dependence governed by the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on a nanochat decoder-only transformer show that the Gaussian-moment proxy estimator faithfully tracks the direct criterion across subspace dimensions $D\in[1,100]$ and perturbation scales within the valid quadratic regime ($\sigma\le10^{-3}$), while diverging outside it. The proxy is approximately $18{,}000\times$ faster than direct Monte Carlo in the evaluation stage after subspace construction. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization and clarify the current limitations of this observational design.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -147,13 +147,13 @@ The theory is therefore not a justification for using a subspace in general, but
 We also develop scalable estimators for $\Delta_2^{(D)}$ based on Hessian--vector products, top-$D$ eigenspace extraction, direct subspace Monte Carlo, and quadratic proxy estimators.
 This enables empirical comparison between pointwise, isotropic, and curvature-aware measurements of landscape stabilization.
 In experiments on a nanochat decoder-only transformer, we test the fidelity of the quadratic proxy estimators and compare the three estimators for $\Delta_2^{(D)}$ across subspace dimensions and perturbation scales.
-The experiments confirm that the Gaussian-moment estimator is accurate within the valid quadratic regime ($\sigma\lesssim10^{-3}$) across all tested $D\in[1,100]$, and reveal that proxy accuracy degrades rapidly outside this regime.
+The experiments confirm that the Gaussian-moment estimator is accurate within the valid quadratic regime ($\sigma\le10^{-3}$) across all tested $D\in[1,100]$, and reveal that proxy accuracy degrades rapidly outside this regime.
 
 \paragraph{Contributions.} Our contributions can be summarized as follows:
 \begin{itemize}
     \item We present a unified loss landscape stabilization criterion $\Delta_p$, which aggregates a loss function difference when adding one more training sample over a probing distribution $q(\mathbf{w})$.
     \item Within this framework, we propose a curvature-aware subspace squared criterion $\Delta_2^{(D)}$, which probes an increment in the principal Hessian subspace near local minima $\mathbf{w}_k^*$, and prove its $\mathcal{O}(k^{-2})$ convergence rate when sample size $k$ tends to infinity.
-    \item We empirically validate three estimators---direct Monte Carlo, Quadratic MC, and the closed-form Gaussian-moment (GM) estimator---and show that GM achieves accuracy within $\sigma\lesssim10^{-3}$ while being approximately $18{,}000\times$ faster than direct MC in the evaluation stage.
+    \item We empirically validate three estimators---direct Monte Carlo, Quadratic MC, and the closed-form Gaussian-moment (GM) estimator---and show that GM achieves accuracy within $\sigma\le10^{-3}$ while being approximately $18{,}000\times$ faster than direct MC in the evaluation stage.
     \item We identify value-gap dominance as a key empirical finding: the scalar term $a_k^2 = \bigl(\mathcal{L}_{k+1}(\mathbf{w}_k^*)-\mathcal{L}_k(\mathbf{w}_k^*)\bigr)^2$ dominates $\Delta_2^{(D)}$ at the tested scales, masking directional curvature differences and clarifying a fundamental design challenge for curvature-aware landscape criteria.
 \end{itemize}
 
@@ -760,13 +760,13 @@ Unless stated otherwise, we use $k=8$ sequences to define $\mathcal{L}_k$ and $\
 Before using any proxy-based estimator, we identify the perturbation scales $\sigma$ at which the local quadratic model \eqref{eq:taylor-quadratic} is reliable.
 For a fixed checkpoint $\mathbf{w}_k^*$, we draw isotropic Gaussian perturbations $\boldsymbol{\delta}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_N)$ and compare the true increment $\mathcal{L}_k(\mathbf{w}_k^*+\boldsymbol{\delta})-\mathcal{L}_k(\mathbf{w}_k^*)$ to its second-order Taylor approximation $\mathbf{g}^{(k)\top}\boldsymbol{\delta}+\frac{1}{2}\boldsymbol{\delta}^\top\mathbf{H}^{(k)}\boldsymbol{\delta}$.
 The mean relative error, averaged over multiple random seeds, is plotted in Fig.~\ref{fig:exp-1} over $\sigma\in[10^{-7},10^{-1}]$.
-The approximation error is never exactly zero due to higher-order contributions, but is reliably small for $\sigma\lesssim10^{-3}$.
+The approximation error is never exactly zero due to higher-order contributions, but is reliably small for $\sigma\le10^{-3}$.
 All proxy-based estimators are therefore restricted to this regime in subsequent experiments.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.7\linewidth]{quadratic_sigma_loggrid_1e7_1e1_plot_abs.pdf}
-    \caption{Relative error of the quadratic Taylor approximation vs.\ perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6} model, step~3500). The quadratic model is reliable for $\sigma\lesssim10^{-3}$; this regime defines the valid operating range for proxy-based estimators.}
+    \caption{Relative error of the quadratic Taylor approximation vs.\ perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6} model, step~3500). The quadratic model is reliable for $\sigma\le10^{-3}$; this regime defines the valid operating range for proxy-based estimators.}
     \label{fig:exp-1}
 \end{figure}
 
@@ -810,12 +810,12 @@ Both MC estimators converge to the GM value as $S$ increases, confirming that th
 \end{figure}
 
 Fig.~\ref{fig:exp-4} shows the relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ as a heatmap over subspace dimension $D\in[1,100]$ and scale $\sigma\in[10^{-7},10^{-2}]$.
-Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is small across all tested subspace dimensions, confirming that the GM estimator serves as an accurate and computationally efficient surrogate for Direct~MC in practice.
+Within the valid proxy regime ($\sigma\le10^{-3}$), the relative error is small across all tested subspace dimensions, confirming that the GM estimator serves as an accurate and computationally efficient surrogate for Direct~MC in practice.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_heatmap.pdf}
-    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D\in[1,100]$ and perturbation scale $\sigma\in[10^{-7},10^{-2}]$ (nanochat \texttt{d6}, step~3500, $S=24$ MC samples per cell). Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is small across all~$D$, showing that the GM estimator is robust to the choice of subspace dimension.}
+    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D\in[1,100]$ and perturbation scale $\sigma\in[10^{-7},10^{-2}]$ (nanochat \texttt{d6}, step~3500, $S=24$ MC samples per cell). Within the valid proxy regime ($\sigma\le10^{-3}$), the relative error is small across all~$D$, showing that the GM estimator is robust to the choice of subspace dimension.}
     \label{fig:exp-4}
 \end{figure}
 
@@ -843,7 +843,7 @@ Under a local quadratic model, we showed that this criterion preserves the same 
 We also derived a spectral special case and described scalable estimators for both the true criterion and its quadratic surrogate.
 
 Empirically, on nanochat, the GM estimator faithfully tracks Direct~MC across all tested subspace dimensions $D\in[1,100]$ and perturbation scales in the valid quadratic regime.
-At the same time, quadratic proxy estimators are reliable only in an extremely local regime ($\sigma\lesssim10^{-3}$), beyond which the GM estimator diverges from Direct~MC.
+At the same time, quadratic proxy estimators are reliable only in an extremely local regime ($\sigma\le10^{-3}$), beyond which the GM estimator diverges from Direct~MC.
 
 Taken together, these results position $\Delta_2^{(D)}$ as a well-defined curvature-aware observable of local landscape stabilization and clarify both its usefulness and its limits.
 
