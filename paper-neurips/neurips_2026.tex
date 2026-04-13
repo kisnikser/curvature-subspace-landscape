@@ -745,13 +745,13 @@ All theoretical results in Section~\ref{sec:theory} are derived under the local 
 Before using any proxy-based estimator, we therefore identify the perturbation scales $\sigma$ at which this model is empirically reliable.
 For a fixed checkpoint $\mathbf{w}_k^*$, we draw isotropic Gaussian perturbations $\boldsymbol{\delta}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_N)$ and compare the true increment $\mathcal{L}_k(\mathbf{w}_k^*+\boldsymbol{\delta})-\mathcal{L}_k(\mathbf{w}_k^*)$ to its second-order Taylor approximation $\mathbf{g}^{(k)\top}\boldsymbol{\delta}+\frac{1}{2}\boldsymbol{\delta}^\top\mathbf{H}^{(k)}\boldsymbol{\delta}$.
 The mean relative error, averaged over multiple random seeds, is plotted in Fig.~\ref{fig:exp-1} over $\sigma\in[10^{-7},10^{-1}]$.
-The approximation error is never exactly zero due to higher-order contributions, but is reliably small for $\sigma\lesssim10^{-3}$.
+The approximation error is never exactly zero due to higher-order contributions, but is reliably small for $\sigma\le10^{-3}$.
 All proxy-based estimators are therefore restricted to this regime in subsequent experiments.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.7\linewidth]{quadratic_sigma_loggrid_1e7_1e1_plot_abs.pdf}
-    \caption{Relative error of the quadratic Taylor approximation vs.\ perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6} model, step~3500). The quadratic model is reliable for $\sigma\lesssim10^{-3}$; this regime defines the valid operating range for proxy-based estimators.}
+    \caption{Relative error of the quadratic Taylor approximation vs.\ perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6} model, step~3500). The quadratic model is reliable for $\sigma\le10^{-3}$; this regime defines the valid operating range for proxy-based estimators.}
     \label{fig:exp-1}
 \end{figure}
 
@@ -800,7 +800,7 @@ Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is s
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_heatmap.pdf}
-    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D\in[1,100]$ and perturbation scale $\sigma\in[10^{-7},10^{-2}]$ (nanochat \texttt{d6}, step~3500, $S=24$ MC samples per cell). Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is small across all~$D$, showing that the GM estimator is robust to the choice of subspace dimension.}
+    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D\in[1,100]$ and perturbation scale $\sigma\in[10^{-7},10^{-2}]$ (nanochat \texttt{d6}, step~3500, $S=24$ MC samples per cell). Within the valid proxy regime ($\sigma\le10^{-3}$), the relative error is small across all~$D$, showing that the GM estimator is robust to the choice of subspace dimension.}
     \label{fig:exp-4}
 \end{figure}
 
