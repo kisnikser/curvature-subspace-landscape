@@ -1,69 +1,124 @@
-% Curvature Subspaces and the Loss Landscape at Scale — TMLR template
-% Compile: pdflatex main && bibtex main && pdflatex main && pdflatex main
-% Figures: \graphicspath points to figures/ (repo layout)
+\documentclass{article}
 
-\documentclass[10pt]{article}
-% \usepackage{tmlr}
-\usepackage[preprint]{tmlr}  % for arXiv-style de-anonymized preprint
-% \usepackage[accepted]{tmlr}  % if accepted
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2026
 
-\input{math_commands.tex}
+% The authors should use one of these tracks.
+% Before accepting by the NeurIPS conference, select one of the options below.
+% 0. "default" for submission
+\usepackage{neurips_2026}
+% the "default" option is equal to the "main" option, which is used for the Main Track with double-blind reviewing.
+% 1. "main" option is used for the Main Track
+ % \usepackage[main]{neurips_2026}
+% 2. "position" option is used for the Position Paper Track
+%  \usepackage[position]{neurips_2026}
+% 3. "eandd" option is used for the Evaluations & Datasets Track
+ % \usepackage[eandd]{neurips_2026}
+ % if you want to opt-in for a de-anomymized submission (not recommended, but OK):
+ %\usepackage[eandd, nonanonymous]{neurips_2026}
+% 4. "creativeai" option is used for the Creative AI Track
+%  \usepackage[creativeai]{neurips_2026}
+% 5. "sglblindworkshop" option is used for the Workshop with single-blind reviewing
+ % \usepackage[sglblindworkshop]{neurips_2026}
+% 6. "dblblindworkshop" option is used for the Workshop with double-blind reviewing
+%  \usepackage[dblblindworkshop]{neurips_2026}
 
-\usepackage{booktabs}
-\usepackage{mathtools}
-\usepackage{amsthm}
+% After being accepted, the authors should add "final" behind the track to compile a camera-ready version.
+% 1. Main Track
+ % \usepackage[main, final]{neurips_2026}
+% 2. Position Paper Track
+%  \usepackage[position, final]{neurips_2026}
+% 3. Evaluations & Datasets Track
+ % \usepackage[eandd, final]{neurips_2026}
+% 4. Creative AI Track
+%  \usepackage[creativeai, final]{neurips_2026}
+% 5. Workshop with single-blind reviewing
+%  \usepackage[sglblindworkshop, final]{neurips_2026}
+% 6. Workshop with double-blind reviewing
+%  \usepackage[dblblindworkshop, final]{neurips_2026}
+% Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote.
+% For workshops (5., 6.), the authors should add the name of the workshop, "\workshoptitle" command is used to set the workshop title.
+% \workshoptitle{WORKSHOP TITLE}
+
+% "preprint" option is used for arXiv or other preprint submissions
+% \usepackage[preprint]{neurips_2026}
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2026}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
 \usepackage{graphicx}
-\usepackage{nicefrac}
-\usepackage{microtype}
-\usepackage{xcolor}
+\usepackage{amsmath}
 
-\usepackage{hyperref}
-\hypersetup{pdfauthor={Anonymous TMLR submission}}
-\usepackage{url}
+\graphicspath{{figures}}
 
-\graphicspath{{paper/figures/}}
-
-\theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem{corollary}[theorem]{Corollary}
 \newtheorem{definition}[theorem]{Definition}
-\theoremstyle{remark}
 \newtheorem{remark}{Remark}
 
+% Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote. 
 \title{Curvature-Subspace Criteria for Local Loss-Landscape Stabilization}
 
-% Under double-blind review, tmlr.sty replaces author block with ``Anonymous authors''.
-\author{\name Nikita Kiselev \email kiselev.ns@phystech.edu\\
-    \addr Department of Intelligent Systems\\
-    Moscow Institute of Physics and Technology
-    \AND
-    \name Andrey Grabovoy \email grabovoy.av@phystech.edu\\
-    \addr Department of Intelligent Systems\\
-    Moscow Institute of Physics and Technology
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{%
+  Nikita Kiselev \\
+  Moscow Institute of Physics and Technology, Russia \\
+  \texttt{kiselev.ns@phystech.edu} \\
+  \And
+  Andrey Grabovoy \\
+  Moscow Institute of Physics and Technology, Russia \\
+  \texttt{grabovoy.av@phystech.edu}
 }
 
-\def\month{04}
-\def\year{2026}
-\def\openreview{\url{https://openreview.net/forum?id=XXXX}}
 
 \begin{document}
 
+
 \maketitle
 
+
 \begin{abstract}
-Deep neural loss landscapes are highly anisotropic: much of their meaningful local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but did not place them in a unified framework and did not exploit local curvature structure, potentially averaging the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, with curvature dependence governed by the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on nanoGPT-style transformers show that the subspace criterion robustly preserves the mean-squared regime across subspace dimensions, perturbation scales, and model settings. At the tested scales, different subspace families remain empirically similar because the scalar value-gap term dominates the criterion, while quadratic proxy estimators are accurate only in an extremely local regime. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization and clarify the current limitations of this observational design.
+    % Scaling laws of modern deep neural networks are used for compute-optimal model and data size increasing. They tend to be highly valitated in practice, however theoretical foundations of them is poorly explored. In this paper, we propose a new foundational framework of loss landscape stabilization, in which adding new training samples is observed to merely change the loss surface in local minima neighborhoods. We show that previously explored one-point and squared criteria cannot fully describe the local behaviuor of the loss function, and thus propose new subspace-squared criterion, which is calculated in principal Hessian subspace. Empirial results show that subspace criteria depends on the choice of their basis, and that proposed one has the most information about the loss curvature. We explore three different algorithms for this criterion estimation in practice, and show effectiveness and robustntess of them in the neighbourhood, where quadratic approximation is valid. We also check application of proposed framework for sample size estimation problem.
+    Deep neural loss landscapes are highly anisotropic: much of their meaningful local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but did not place them in a unified framework and did not exploit local curvature structure, potentially averaging the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, with curvature dependence governed by the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on nanoGPT-style transformers show that the subspace criterion robustly preserves the mean-squared regime across subspace dimensions, perturbation scales, and model settings. At the tested scales, different subspace families remain empirically similar because the scalar value-gap term dominates the criterion, while quadratic proxy estimators are accurate only in an extremely local regime. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization and clarify the current limitations of this observational design.
 \end{abstract}
 
-\section{Introduction}
-\label{sec:intro}
+\section{Introduction}\label{sec:intro}
 
-\begin{figure}[h]
+\begin{figure}[t]
   \centering
-  \includegraphics[width=0.42\linewidth]{criterion_squared_subspace.pdf}
-  \caption{Curvature-aware observation of local landscape stabilization. The proposed subspace mean-squared criterion~$\Delta_{2}^{(D)}(k+1)$ probes the increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ by restricting perturbations to the principal curvature subspace $\mathcal{S}_{D}$ near the minimum~$\mathbf w_k^*$ of the loss function~$\mathcal{L}_{k}(\mathbf{w})$.}
-  \label{fig:intro-subspace-criterion}
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{criterion_general.pdf}\\[0.3em]
+    \small (a) Unified loss landscape stabilization criterion $\Delta_p$ with probing distribution $q(\mathbf{w})$
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{criterion_squared_subspace.pdf}\\[0.3em]
+    \small (b) Princial Hessian subspace $\mathcal{S}_D$ squared criterion $\Delta_2^{(D)}$
+  \end{minipage}
+  \caption{\textbf{Loss landscape stabilization criteria.} (a) General framework for convergence observation with arbitrary probing distribution $q(\mathbf{w})$, and (b) Curvature-aware criterion, which capture loss increment field on a principal Hessian subspace along top-curvature directions.}
+  \label{fig:overview}
 \end{figure}
 
 Training in deep learning depends not only on the value of the empirical risk at a solution, but also on the local geometry of the loss surface around that solution.
@@ -80,7 +135,7 @@ The increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is a scalar 
 This makes local landscape stabilization an \emph{observational} problem as well as a convergence problem.
 Within this framework, previously studied pointwise and isotropic criteria appear as special cases corresponding to different probing laws, and the choice of probing distribution becomes part of the scientific question rather than merely part of the estimator.
 
-We study a curvature-aware specialization of this framework: the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:intro-subspace-criterion}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$.
+We study a curvature-aware specialization of this framework: the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:overview}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$.
 The purpose of this restriction is not merely dimensionality reduction, but geometry-aligned probing of the increment field near a trained solution.
 Thus, $\Delta_2^{(D)}$ should be read as a curvature-aware observable of local landscape stabilization.
 
@@ -94,23 +149,21 @@ This enables empirical comparison between pointwise, isotropic, and curvature-aw
 In experiments on nanoGPT-style decoder-only transformers, we evaluate $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ under increasing sample size, compare the criterion across different subspace families, and test the fidelity of quadratic proxy estimators.
 The experiments show robust separation between one-point and mean-squared regimes, but also reveal two important limitations: at the tested perturbation scales, directional differences between subspace families are largely masked by the scalar value-gap term, and quadratic proxy estimators are reliable only in an extremely local regime.
 
-Our main contributions are as follows:
+\paragraph{Contributions.} Our contributions can be summarized as follows:
 \begin{itemize}
-    \item We introduce a unified framework for local landscape stabilization criteria, which treats such criteria as observables of the increment field under a chosen probing law and places previously studied pointwise and isotropic criteria in a common language.
-    \item Within this framework, we define the curvature-aware criterion $\Delta_2^{(D)}$, which probes the increment $\mathcal L_{k+1}(\mathbf{w}) - \mathcal L_k(\mathbf{w})$ in the principal curvature subspace near $\mathbf w_k^*$.
-    \item We show that, under a local quadratic model, $\Delta_2^{(D)}$ preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with a curvature-dependent term controlled by $D$ rather than $N$, and we derive a spectral closed form in a stable-eigenspace regime.
-    \item We develop scalable estimators for the true criterion and its quadratic surrogate, and empirically characterize both the robustness of the subspace criterion and the current limits of directional discrimination and quadratic proxy fidelity.
+    \item We present a unified loss landscape stabilization criterion $\Delta_p$ based, which aggregates a loss function difference when adding one more training sample over a probing distibition $q(\mathbf{w})$.
+    \item Within this framework, we propose a curvature-aware subspace squared criterion $\Delta_2^{(D)}$, which probes an increment in the principal Hessian subspace near local minima $\mathbf{w}_k^*$, and prove its $\mathcal{O}(k^{-2})$ convergence rate when sample size $k$ tends to infinity.
+    \item We empirically validate our proposed criterion using three different estimators: direct Monte Carlo, and two proxy estimators that use quadratic Taylor approximation.
+    \item We highlight the implications of our findings for sample size estimation techniques and theoretical investigation of existing scaling laws.
 \end{itemize}
 
-The rest of the paper is organized as follows.
-Section~\ref{sec:related} reviews related work.
+\paragraph{Outline.} The rest of the paper is organized as follows. Section~\ref{sec:related} reviews related work.
 Section~\ref{sec:prelim} introduces the unified stabilization framework, and Section~\ref{sec:method} defines the curvature-aware criterion.
 Section~\ref{sec:theory} develops the local quadratic analysis and the main convergence result.
 Section~\ref{sec:algo} presents scalable estimation procedures, and Section~\ref{sec:experiments} reports the empirical study.
 We conclude with a discussion of limitations and future directions.
 
-\section{Related work}
-\label{sec:related}
+\section{Related Work}\label{sec:related}
 
 \paragraph{Loss landscapes, Hessian spectra, and anisotropic local geometry.}
 A large body of work studies neural loss geometry through landscape visualization, local curvature, and Hessian spectra.
@@ -138,11 +191,6 @@ The neural tangent kernel literature analyzes training dynamics in an infinite-w
 Recent work on dominant and bulk Hessian subspaces studies how optimization trajectories align with different spectral components~\citep{song2025tiny,zhou2025bsfa}.
 Our question is different: we study how the empirical landscape itself changes under one-sample growth, and how that change should be probed near a trained solution.
 
-\paragraph{Positioning.}
-The literature establishes two ingredients relevant to our setting: local curvature in deep networks is highly anisotropic, and landscape increments under sample growth admit measurable convergence criteria.
-Our contribution is to connect these observations through a unified framework for local stabilization criteria and a curvature-aware mean-squared instantiation within that framework.
-We analyze this criterion under a local quadratic model, show that it preserves the mean-squared convergence order of the full-space criterion, and characterize empirically both its robustness and its current limitations.
-
 \section{Preliminaries}
 \label{sec:prelim}
 
@@ -161,7 +209,7 @@ where $\ell:\mathbb{Y}\times\mathbb{Y}\to\mathbb{R}_+$ is a per-example loss.
 Let
 \begin{equation}
 \label{eq:erm-min}
-\mathbf w_m^* \in \argmin_{\mathbf w\in\mathbb R^N} \mathcal L_m(\mathbf w)
+\mathbf w_m^* \in \arg\min_{\mathbf w\in\mathbb R^N} \mathcal L_m(\mathbf w)
 \end{equation}
 denote a minimizer of the empirical risk.
 We refer to the graph of $\mathcal L_m(\mathbf w)$ over $\mathbb R^N$ as the \emph{loss landscape}.
@@ -772,257 +820,15 @@ setup cost $+\ \mathcal O(D^2)$
 \end{center}
 \end{table}
 
-\section{Experiments}
-\label{sec:experiments}
+\section{Experiments}\label{sec:experiments}
 
-We evaluate the one-point criterion $\Delta_1$, the full-space mean-squared criterion $\Delta_2$, and the curvature-aware subspace criterion $\Delta_2^{(D)}$ under increasing sample size $k$.
-Our goals are to test whether $\Delta_2^{(D)}$ preserves the mean-squared regime, whether different subspace choices are empirically distinguishable, how accurately quadratic proxy estimators reproduce the true criterion, how the criterion depends on $D$ and $\sigma$, and how stable the leading curvature subspaces remain across adjacent values of $k$.
-Throughout, $\Delta_1$ and $\Delta_2$ serve as pointwise and isotropic baselines.
+To verify the theoretical estimates obtained, we conducted a detailed empirical study...
 
-\subsection{Experimental protocol}
-\label{sec:exp-protocol}
+\paragraph{Quadratic proxy.} Here we discover at which $\sigma$ values the quadratic Taylor approximation holds. 
 
-\paragraph{Nested subsets and retraining.}
-For each training set size $k$, we fix a random ordering of the training pool and take the first $k$ examples, yielding nested subsets.
-For each subset, we train a model from scratch and record the resulting minimizer surrogate $\mathbf w_k^*$.
-The empirical risks $\mathcal L_k$ and $\mathcal L_{k+1}$ are always evaluated on the corresponding nested subsets, matching the theoretical setup.
+\paragraph{Estimators Comparison.} Compare three above estimators with different $\sigma$ and $D$ values across $k$. Some plots --- also for compute and time.
 
-\paragraph{Models and datasets.}
-Our main experiments use nanoGPT-style decoder-only transformers.
-We report results on a reference Tiny Shakespeare setting and a stronger WikiText-2 setting, both under the same nested-subset protocol.
-The second setting is included to test whether the main geometric trends persist under a stronger corpus and model configuration.
-
-\paragraph{Criteria and estimators.}
-We evaluate $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$.
-The subspace criterion is estimated by direct subspace Monte Carlo, quadratic Monte Carlo, and the Gaussian-moment estimator from Section~\ref{sec:algo}.
-Unless stated otherwise, the principal curvature subspace is recomputed separately for each $k$.
-
-\paragraph{Reported statistics.}
-We report mean curves across random seeds together with variability bands.
-For scaling results, we fit lines to $\log \Delta_\bullet$ versus $\log k$ over a mid-$k$ window that excludes the smallest values of $k$.
-For estimator-comparison experiments, we report relative error, correlation, and slope agreement where relevant.
-For subspace-stability experiments, we report overlaps between adjacent principal curvature subspaces.
-
-\paragraph{Implementation notes.}
-Top-$D$ Hessian eigendirections are computed using Hessian--vector products and iterative eigensolvers as described in Section~\ref{sec:algo}.
-When Hessian-based quantities are estimated on trimmed subsets for efficiency, this is stated explicitly and kept separate from the direct evaluation of the landscape criteria.
-Implementation details and hyperparameters are summarized in Appendix~\ref{app:exp} and Table~\ref{tab:exp-hparams}.
-
-\subsection{Reference scaling behavior of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$}
-\label{sec:exp-reference-scaling}
-
-We begin by comparing the scaling behavior of the three main criteria as functions of $k$.
-This verifies the separation between the one-point and mean-squared regimes and places $\Delta_2^{(D)}$ on the same empirical footing as the previously studied baselines.
-
-Figure~\ref{fig:exp-reference-scaling} reports $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ in the reference Tiny Shakespeare setting (three seeds, $k\in\{100,\dots,5000\}$).
-The one-point criterion decays approximately as $k^{-1}$ (fitted slope ${\approx}-1.01$), while the subspace criterion decays substantially faster (fitted slope ${\approx}-1.87$).
-The full-space criterion also lies in the mean-squared regime, with fitted slope ${\approx}-1.51$.
-Across the full grid, $\Delta_1$ decreases by about $66\times$, $\Delta_2$ by about $10^3\times$, and $\Delta_2^{(10)}$ by about $2\times10^3$.
-Thus, restricting probing to the principal curvature subspace preserves the characteristic separation between one-point and mean-squared stabilization.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.6\linewidth]{reference_scaling.pdf}
-  \caption{
-  Reference scaling of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ as functions of $k$ in the reference nanoGPT setting.
-  Dashed lines indicate reference slopes for the one-point and mean-squared regimes.
-  }
-  \label{fig:exp-reference-scaling}
-\end{figure}
-
-\subsection{Top-$D$ versus random, bottom, and mixed subspaces}
-\label{sec:exp-subspace-choice}
-
-We compare four $D$-dimensional subspace families with $D=10$:
-(i) the top-$D$ eigenspace of $\mathbf H^{(k)}(\mathbf w_k^*)$,
-(ii) a random isotropic subspace,
-(iii) the bottom-$D$ eigenspace, and
-(iv) mixed subspaces combining top and bottom directions.
-This tests whether different probing geometries yield measurably different stabilization signals.
-
-Figure~\ref{fig:exp-subspace-comparison} shows that all four families produce criterion values of the same order of magnitude and exhibit similar decay.
-At $\sigma=0.02$ and $D=10$, no subspace family is clearly distinguished.
-
-This is explained by the decomposition in \eqref{eq:loss-diff-minimum}.
-In our experiments, the squared value-gap term $a_k^2$ accounts for a substantial fraction of the criterion and often dominates at small $k$.
-Because $a_k=\mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*)$ is scalar, it is identical across subspaces and masks directional contributions.
-This is consistent with the restricted extremality result in Lemma~\ref{lemma:extremal-topD}, which applies only when $a_k=0$ and $\mathbf c_k=\mathbf 0$.
-
-Thus, at the tested perturbation scale, $\Delta_2^{(D)}$ preserves the mean-squared regime across subspace choices, but curvature alignment is not empirically distinguishable.
-Resolving such differences would likely require either larger $\sigma$ (with reduced locality) or a modified criterion that suppresses the value-gap term.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.6\linewidth]{subspace_comparison.pdf}
-  \caption{
-  Comparison of $\Delta_2^{(D)}$ across top-curvature, random, bottom-curvature, and mixed $D$-dimensional subspaces.
-  }
-  \label{fig:exp-subspace-comparison}
-\end{figure}
-
-\subsection{Direct criterion versus quadratic proxy estimators}
-\label{sec:exp-direct-vs-proxy}
-
-We compare the true subspace criterion with the two quadratic proxy estimators from Section~\ref{sec:algo}: quadratic Monte Carlo and the Gaussian-moment (GM) closed form.
-The goal is to identify the regime in which the local quadratic model is faithful.
-
-\paragraph{Fixed-$\sigma$ comparison.}
-Figure~\ref{fig:exp-direct-vs-proxy-curves} compares the three estimators across $k$ in the reference setting ($D=10$, $\sigma=0.02$).
-At this perturbation scale, both proxy estimators substantially overestimate the direct criterion: the GM estimator is about $3\times$ larger at $k=100$ and about $10^5\times$ larger at $k=5000$.
-
-\paragraph{Proxy validity as a function of $\sigma$.}
-To locate the validity regime of the quadratic approximation, we sweep $\sigma$ from $10^{-4}$ to $10^{-1}$ and compute the ratio $\mathrm{GM}/\mathrm{Direct}$ at each $(k,\sigma)$.
-Figure~\ref{fig:exp-proxy-validity} reports the results.
-
-For sufficiently small $\sigma$, the proxy is accurate.
-In the reference setting, the ratio stays below $1.1$ for $k=100$ when $\sigma\leq 0.002$.
-However, the crossover scale shrinks rapidly with $k$: by $k=300$, only $\sigma\leq 10^{-4}$ remains below this threshold, and for $k\geq 400$ even $\sigma=10^{-4}$ can exceed it.
-This is consistent with the fact that the quadratic term grows as $\sigma^4$, while the shared value-gap contribution shrinks with $k$, amplifying the relative error of the surrogate terms.
-
-The same pattern holds in the WikiText-2 setting, where the proxy is accurate only at even smaller perturbation scales.
-
-Overall, the quadratic proxy is valid only in an extremely local regime, and this regime narrows as $k$ increases.
-For practical measurement of $\Delta_2^{(D)}$, direct subspace Monte Carlo is therefore the more reliable estimator.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.6\linewidth]{direct_vs_proxy_curves.pdf}
-  \caption{
-  Direct subspace criterion versus quadratic proxy estimators across $k$ ($D=10$, $\sigma=0.02$, reference setting).
-  The proxy estimators overestimate the direct criterion by several orders of magnitude.
-  }
-  \label{fig:exp-direct-vs-proxy-curves}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{proxy_validity.pdf}
-  \caption{
-  Ratio of the Gaussian-moment proxy to the direct subspace criterion as a function of the perturbation scale~$\sigma$, for several values of~$k$.
-  The proxy is near-exact at sufficiently small~$\sigma$ but diverges rapidly once $\sigma$ exceeds a $k$-dependent crossover scale.
-  Dashed gray line: perfect agreement ($\text{ratio}=1$); dotted red line: $1.1{\times}$ threshold.
-  }
-  \label{fig:exp-proxy-validity}
-\end{figure}
-
-\subsection{Sweep over the subspace dimension $D$}
-\label{sec:exp-D-sweep}
-
-To test the dependence of $\Delta_2^{(D)}$ on the chosen subspace dimension, we evaluate the criterion for $D\in\{5,10,20,50\}$.
-
-Figure~\ref{fig:exp-D-sweep} shows that the criterion is stable across this range: all four curves remain within the same order of magnitude, and the fitted slopes range from $-1.90$ ($D=5$) to $-1.81$ ($D=50$).
-Thus, the mean-squared regime is robust to the choice of $D$ in the tested range.
-This is consistent with the dominant contribution of the value-gap term $a_k$, which is independent of $D$.
-
-Overall, the observed behavior of $\Delta_2^{(D)}$ is not tied to a single ad hoc choice of subspace dimension.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.6\linewidth]{D_sweep.pdf}
-  \caption{
-  Dependence of $\Delta_2^{(D)}$ on the subspace dimension $D$.
-  }
-  \label{fig:exp-D-sweep}
-\end{figure}
-
-\subsection{Sensitivity to the perturbation scale $\sigma$}
-\label{sec:exp-sigma}
-
-The perturbation scale $\sigma$ controls how locally the criterion probes the landscape around $\mathbf w_k^*$.
-We evaluate the direct subspace criterion for $\sigma\in\{0.005, 0.01, 0.02, 0.05, 0.1\}$.
-
-Figure~\ref{fig:exp-sigma-sweep} shows that the criterion is stable across $\sigma\in[0.005,0.02]$: the curves nearly overlap, with fitted slopes in the range $[-1.94,-1.92]$.
-For larger $\sigma\in\{0.05,0.1\}$, the criterion values decrease slightly and the slopes flatten to about $-1.84$.
-
-Thus, the direct subspace criterion is robust to the choice of $\sigma$ in a practical local range.
-Combined with the proxy analysis in Section~\ref{sec:exp-direct-vs-proxy}, this shows a clear separation: the direct criterion remains stable for moderate local perturbations, whereas the quadratic proxy is faithful only at much smaller scales.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{sigma_sweep.pdf}
-  \caption{
-  Dependence of the direct and proxy subspace criteria on the perturbation scale $\sigma$.
-  }
-  \label{fig:exp-sigma-sweep}
-\end{figure}
-
-\subsection{Eigenspace stability and overlap across $k$}
-\label{sec:exp-overlap}
-
-The spectral interpretation from Section~\ref{sec:theory} is most transparent when the leading curvature directions remain stable as $k$ grows.
-To quantify this, let $\mathbf U_D^{(k)}$ and $\mathbf U_D^{(k+1)}$ denote orthonormal bases of the top-$D$ eigenspaces of $\mathbf H^{(k)}(\mathbf w_k^*)$ and $\mathbf H^{(k+1)}(\mathbf w_k^*)$, and define $\mathbf M_k^{(D)}=(\mathbf U_D^{(k)})^\top \mathbf U_D^{(k+1)}$.
-The singular values of $\mathbf M_k^{(D)}$ are the cosines of the principal angles between the two subspaces, so we use the mean principal cosine overlap
-\begin{equation}
-\label{eq:mean-principal-cosine-overlap}
-\operatorname{Overlap}_D(k,k+1)
-=
-\frac{1}{D}\sum_{i=1}^D \sigma_i\!\left(\mathbf M_k^{(D)}\right).
-\end{equation}
-
-Figure~\ref{fig:exp-overlap} reports $\operatorname{Overlap}_D(k,k+1)$ for $D\in\{5,10,20,50\}$.
-Across both settings, the overlap remains between $0.87$ and $0.99$, with average values of about $0.93$ in Tiny Shakespeare and $0.95$ in WikiText-2.
-Thus, the leading curvature subspace drifts with $k$ but remains substantially aligned across adjacent sample sizes.
-
-This supports the use of the top-curvature subspace as a stable geometric frame for probing stabilization, even though Assumption~\ref{ass:stable-principal} is not exactly satisfied.
-The slight decrease in overlap at larger $D$ is consistent with the lower stability of higher-order eigendirections.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.6\linewidth]{overlap.pdf}
-  \caption{
-  Overlap between adjacent top-$D$ principal curvature subspaces across $k$.
-  }
-  \label{fig:exp-overlap}
-\end{figure}
-
-\subsection{Cross-setting validation}
-\label{sec:exp-cross-setting}
-
-We test whether the main qualitative conclusions persist in the stronger WikiText-2 setting (wider nanoGPT, $k\in\{256,\dots,4096\}$).
-Figure~\ref{fig:exp-cross-setting} compares the main stabilization curves across both settings.
-
-The same qualitative pattern is preserved.
-In WikiText-2, $\Delta_1$ remains the shallower baseline (fitted slope ${\approx}-0.79$), while $\Delta_2$ and $\Delta_2^{(10)}$ decay more steeply (fitted slopes ${\approx}-1.83$ and ${\approx}-1.82$).
-Although the absolute scales differ across settings, the separation between the one-point and mean-squared regimes remains clear.
-Eigenspace overlaps are also comparable (mean overlap ${\sim}0.95$ for $D=10$), and the subspace criterion remains robust across $D$ and $\sigma$.
-
-These results indicate that the main empirical picture is not specific to the Tiny Shakespeare setting, but persists across the two nanoGPT configurations considered here.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{cross_setting.pdf}
-  \caption{
-  Cross-setting comparison of the main stabilization criteria in the Tiny Shakespeare and WikiText-2 runs.
-  }
-  \label{fig:exp-cross-setting}
-\end{figure}
-
-\subsection{Main empirical conclusions}
-\label{sec:exp-summary}
-
-The experiments support four main conclusions.
-
-\emph{Scaling separation is robust.}
-$\Delta_1$ remains in a shallower one-point regime, while $\Delta_2$ and $\Delta_2^{(D)}$ lie in a steeper mean-squared regime, with fitted slopes in the range $[-1.5,-1.9]$.
-The subspace criterion preserves this behavior across $D\in\{5,10,20,50\}$, practical perturbation scales $\sigma\in[0.005,0.1]$, and both experimental settings.
-
-\emph{Subspace choice is not empirically distinguished at the tested scales.}
-Top, random, bottom, and mixed subspaces yield criterion values of the same order and similar decay.
-This is explained by the dominance of the scalar value-gap term $a_k^2$, which masks directional contributions.
-Accordingly, the restricted extremality result of Lemma~\ref{lemma:extremal-topD} does not directly manifest in practice.
-
-\emph{Quadratic proxies are reliable only in an extremely local regime.}
-The Gaussian-moment proxy is accurate only for very small perturbation scales and becomes unreliable quickly as $k$ grows.
-At the practical scale $\sigma=0.02$, it overestimates the direct criterion by factors ranging from $10^1$ to $10^5$.
-For reliable evaluation of $\Delta_2^{(D)}$, direct subspace Monte Carlo is therefore preferable.
-
-\emph{The principal curvature subspace remains stable enough to support interpretation.}
-Across adjacent values of $k$, the mean overlap of the leading eigenspaces stays around $0.93$--$0.95$.
-Thus, although eigenspace drift is present, the top-curvature subspace remains a coherent geometric frame for probing stabilization.
-
-Overall, $\Delta_2^{(D)}$ behaves as a robust curvature-aware observable of local landscape stabilization.
-Its main empirical strength is not directional separation between subspace families, but stable mean-squared behavior across settings and probing choices.
-The masking of directional effects by the value-gap term and the narrow validity of quadratic proxies point to natural extensions, including modified criteria that suppress scalar contributions and richer local models beyond the quadratic approximation.
+\paragraph{Previous and new criteria.} Compare $\Delta_1$, $\Delta_2$, $\Delta_2^{(D)}$ in convergence rates and their correlation with validation loss and accuracy (or other quality metrics).
 
 \section{Discussion and limitations}
 \label{sec:discussion}
@@ -1052,13 +858,15 @@ At the same time, directional differences between subspace families are largely 
 
 Taken together, these results position $\Delta_2^{(D)}$ as a well-defined curvature-aware observable of local landscape stabilization and clarify both its usefulness and its limits.
 
-\section*{Acknowledgments and Disclosure of Funding}
-This work received no external funding or grant support.
-All experiments were conducted on the authors' own workstation using an NVIDIA GeForce RTX 3090 GPU.
-The authors used large language model tools for language editing and manuscript polishing; all technical content, mathematical claims, experimental design, and final verification were carried out by the authors.
 
-\bibliographystyle{tmlr}
-\bibliography{main}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \appendix
 
@@ -1553,5 +1361,11 @@ All plots and summary statistics in the main text are generated from these recor
   \caption{Reference experimental defaults for the Tiny Shakespeare setting.}
   \label{tab:exp-hparams}
 \end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% \newpage
+% \input{checklist.tex}
+
 
 \end{document}
