@@ -1,66 +1,3 @@
-% --- Author's prior work (Google Scholar profile: https://scholar.google.com/citations?user=8BOqs70AAAAJ) ---
-% delta1 = one-point / landscape increment theory (absolute criterion); Doklady Mathematics
-@article{author:delta1,
-  author  = {Kiselev, Nikita and Grabovoy, Andrey},
-  title   = {Unraveling the {H}essian: {A} Key to Smooth Convergence in Loss Function Landscapes},
-  journal = {Doklady Mathematics},
-  volume  = {110},
-  number  = {1},
-  pages   = {49--61},
-  year    = {2025},
-  doi     = {10.1134/S1064562424601987},
-  publisher = {Pleiades Publishing}
-}
-
-% delta2 = mean-squared / distributional averaging (full-space criterion); in press at ISP RAS 2025
-@inproceedings{author:delta2,
-  author    = {Kiselev, Nikita and Meshkov, Vladislav and Grabovoy, Andrey},
-  title     = {Robust Convergence of Loss Landscapes through Distributional Averaging},
-  booktitle = {Proceedings of the {ISP RAS}},
-  year      = {2025},
-  note      = {In press}
-}
-
-@inproceedings{meshkov2024convnets,
-  author    = {Meshkov, Vladislav and Kiselev, Nikita and Grabovoy, Andrey},
-  title     = {{ConvNets} Landscape Convergence: {H}essian-Based Analysis of Matricized Networks},
-  booktitle = {2024 Ivannikov {ISPRAS} Open Conference ({ISPRAS})},
-  year      = {2024},
-  pages     = {1--10},
-  publisher = {IEEE},
-  url       = {https://ieeexplore.ieee.org/document/10899113}
-}
-
-@article{kiselev2025cmmp,
-  author  = {Kiselev, Nikita and Grabovoy, Andrey},
-  title   = {Sample size determination: likelihood bootstrapping},
-  journal = {Computational Mathematics and Mathematical Physics},
-  volume  = {65},
-  number  = {2},
-  pages   = {416--423},
-  year    = {2025},
-  doi     = {10.1134/S0965542524702002}
-}
-
-@article{kiselev2025cms,
-  author  = {Kiselev, Nikita and Grabovoy, Andrey},
-  title   = {Sample size determination: posterior distributions proximity},
-  journal = {Computational Management Science},
-  volume  = {22},
-  number  = {1},
-  year    = {2025},
-  doi     = {10.1007/s10287-024-00528-9}
-}
-
-@misc{petrov2025curvature_gap,
-  title         = {Closing the Curvature Gap: Full Transformer {H}essians and Their Implications for Scaling Laws},
-  author        = {Petrov, Egor and Kiselev, Nikita and Meshkov, Vladislav and Grabovoy, Andrey},
-  year          = {2025},
-  eprint        = {2510.16927},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.LG}
-}
-
 % --- Learning theory & stability ---
 @article{bousquet2002stability,
   author  = {Bousquet, Olivier and Elisseeff, Andr{\'e}},
@@ -112,40 +49,8 @@
   title     = {Visualizing the Loss Landscape of Neural Nets},
   author    = {Li, Hao and Xu, Zheng and Taylor, Gavin and Studer, Christoph and Goldstein, Tom},
   booktitle = {Advances in Neural Information Processing Systems},
-  year      = {2018}
-}
-
-@misc{xu2024mining,
-  title         = {Visualizing, Rethinking, and Mining the Loss Landscape of Deep Neural Networks},
-  author        = {Xu, Yichu and Li, Xin-Chun and Li, Lan and Zhan, De-Chuan},
-  year          = {2024},
-  eprint        = {2405.12493},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.LG}
-}
-
-% --- Hessian: empirical spectra, scale, structure ---
-@article{sagun2017hessian,
-  title   = {Empirical Analysis of the Hessian of Over-Parametrized Neural Networks},
-  author  = {Sagun, Levent and Evci, Utku and Guney, Vincent Ugur and Dauphin, Yann and Bottou, L{\'e}on},
-  journal = {arXiv preprint arXiv:1706.04454},
-  year    = {2017}
-}
-
-@article{ghorbani2019investigation,
-  title   = {An Investigation into Neural Net Optimization via Hessian Analysis},
-  author  = {Ghorbani, Behrooz and Krishnan, Shankar and Xiao, Ying},
-  journal = {arXiv preprint arXiv:1906.03829},
-  year    = {2019}
-}
-
-@misc{papyan2019fullspectrum,
-  title         = {The Full Spectrum of Deepnet Hessians at Scale: Dynamics with {SGD} Training and Sample Size},
-  author        = {Papyan, Vardan},
-  year          = {2019},
-  eprint        = {1811.07062},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.LG}
+  year      = {2018},
+  url       = {https://proceedings.neurips.cc/paper/2018/hash/a41b3bb3e6b050b6c9067c67f663b915-Abstract.html}
 }
 
 @inproceedings{wu2021dissecting,
@@ -160,15 +65,6 @@
   author    = {Singh, Sidak Pal and Hofmann, Thomas and Sch{\"o}lkopf, Bernhard},
   booktitle = {International Conference on Machine Learning},
   year      = {2023}
-}
-
-@misc{baskerville2021rmt,
-  title         = {Appearance of Random Matrix Theory in Deep Learning},
-  author        = {Baskerville, Nicholas P. and Granziol, Diego and Keating, Jonathan P.},
-  year          = {2021},
-  eprint        = {2102.06740},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.LG}
 }
 
 % --- Sharpness, flat minima, SAM ---
@@ -232,7 +128,7 @@
   booktitle = {2020 {IEEE} International Conference on Big Data},
   year      = {2020},
   pages     = {581--590},
-  doi       = {10.1109/BigData50022.2020.9378234}
+  doi       = {10.1109/BigData50022.2020.9378171}
 }
 
 @inproceedings{song2025tiny,
@@ -243,6 +139,52 @@
   note      = {arXiv:2405.16002}
 }
 
+
+@misc{sagun2017hessian,
+  title         = {Empirical Analysis of the Hessian of Over-Parametrized Neural Networks},
+  author        = {Sagun, Levent and Evci, Utku and Guney, Vincent Ugur and Dauphin, Yann and Bottou, L{\'e}on},
+  year          = {2017},
+  eprint        = {1706.04454},
+  archivePrefix = {arXiv},
+  primaryClass  = {stat.ML}
+}
+
+@misc{ghorbani2019investigation,
+  title         = {An Investigation into Neural Net Optimization via Hessian Analysis},
+  author        = {Ghorbani, Behrooz and Krishnan, Shankar and Xiao, Ying},
+  year          = {2019},
+  eprint        = {1906.03829},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@misc{papyan2019fullspectrum,
+  title         = {The Full Spectrum of Deepnet Hessians at Scale: Dynamics with {SGD} Training and Sample Size},
+  author        = {Papyan, Vardan},
+  year          = {2019},
+  eprint        = {1811.07062},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@misc{xu2024mining,
+  title         = {Visualizing, Rethinking, and Mining the Loss Landscape of Deep Neural Networks},
+  author        = {Xu, Yichu and Li, Xin-Chun and Li, Lan and Zhan, De-Chuan},
+  year          = {2024},
+  eprint        = {2405.12493},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@misc{baskerville2021rmt,
+  title         = {Appearance of Random Matrix Theory in Deep Learning},
+  author        = {Baskerville, Nicholas P. and Granziol, Diego and Keating, Jonathan P.},
+  year          = {2021},
+  eprint        = {2102.06740},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
 @misc{zhou2025bsfa,
   title         = {{BSFA}: Leveraging the Subspace Dichotomy to Accelerate Neural Network Training},
   author        = {Zhou, Wenjie and Wang, Bohan and Chen, Wei and Cheng, Xueqi},
@@ -250,4 +192,173 @@
   eprint        = {2510.25244},
   archivePrefix = {arXiv},
   primaryClass  = {cs.LG}
+}
+
+@inproceedings{hardt2016train,
+  title     = {Train faster, generalize better: Stability of stochastic gradient descent},
+  author    = {Hardt, Moritz and Recht, Benjamin and Singer, Yoram},
+  booktitle = {Proceedings of the 33rd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {48},
+  pages     = {1225--1234},
+  year      = {2016},
+  publisher = {PMLR},
+  url       = {https://proceedings.mlr.press/v48/hardt16.html}
+}
+
+@inproceedings{ghorbani2020kernel,
+  title     = {When Do Neural Networks Outperform Kernel Methods?},
+  author    = {Ghorbani, Behrooz and Mei, Song and Misiakiewicz, Theodor and Montanari, Andrea},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2020}
+}
+
+@inproceedings{koh2017influence,
+  title     = {Understanding Black-box Predictions via Influence Functions},
+  author    = {Koh, Pang Wei and Liang, Percy},
+  booktitle = {Proceedings of the 34th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {70},
+  pages     = {1885--1894},
+  year      = {2017}
+}
+
+@inproceedings{giordano2019swiss,
+  title     = {A Swiss Army Infinitesimal Jackknife},
+  author    = {Giordano, Ryan and Broderick, Tamara and Jordan, Michael I.},
+  booktitle = {Proceedings of Machine Learning Research},
+  volume    = {89},
+  pages     = {1139--1147},
+  year      = {2019}
+}
+
+@inproceedings{koh2019group,
+  title     = {On the Accuracy of Influence Functions for Measuring Group Effects},
+  author    = {Koh, Pang Wei and Ang, Kai-Siang and Teo, Hubert H. K. and Liang, Percy},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {32},
+  year      = {2019}
+}
+
+@inproceedings{basu2020secondorder,
+  title     = {On Second-Order Group Influence Functions for Black-Box Predictions},
+  author    = {Basu, Samyadeep and You, Xuchen and Feizi, Soheil},
+  booktitle = {Proceedings of the 23rd International Conference on Artificial Intelligence and Statistics},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {108},
+  pages     = {2582--2591},
+  year      = {2020}
+}
+
+@inproceedings{gurari2018tiny,
+  title     = {Gradient Descent Happens in a Tiny Subspace},
+  author    = {Gur-Ari, Guy and Roberts, Daniel A. and Dyer, Ethan},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2019}
+}
+
+@inproceedings{li2018intrinsic,
+  title     = {Measuring the Intrinsic Dimension of Objective Landscapes},
+  author    = {Li, Chunyuan and Farkhoor, Heerad and Liu, Rosanne and Yosinski, Jason},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2018}
+}
+
+@inproceedings{simsek2021geometry,
+  title     = {Geometry of the Loss Landscape in Overparameterized Neural Networks: Symmetries and Invariances},
+  author    = {Simsek, Berfin and Ged, Fran{\c{c}}ois and Jacot, Arthur and Spadaro, Francesco and Hongler, Clement and Gerstner, Wulfram and Brea, Johanni},
+  booktitle = {Proceedings of the 38th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {139},
+  pages     = {9722--9732},
+  year      = {2021}
+}
+
+@inproceedings{draxler2018essentially,
+  title     = {Essentially No Barriers in Neural Network Energy Landscape},
+  author    = {Draxler, Felix and Veschgini, Kambis and Salmhofer, Manfred and Hamprecht, Fred A.},
+  booktitle = {Proceedings of the 35th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {80},
+  pages     = {1309--1318},
+  year      = {2018}
+}
+
+@inproceedings{garipov2018mode,
+  title     = {Loss Surfaces, Mode Connectivity, and Fast Ensembling of DNNs},
+  author    = {Garipov, Timur and Izmailov, Pavel and Podoprikhin, Dmitrii and Vetrov, Dmitry P. and Wilson, Andrew Gordon},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {31},
+  year      = {2018}
+}
+
+@article{fort2019large,
+  title   = {Large Scale Structure of Neural Network Loss Landscapes},
+  author  = {Fort, Stanislav and Jastrzebski, Stanislaw},
+  journal = {arXiv preprint arXiv:1906.04724},
+  year    = {2019}
+}
+
+@inproceedings{fort2020deepkernel,
+  title     = {Deep Learning versus Kernel Learning: An Empirical Study of Loss Landscape Geometry and the Time Evolution of the Neural Tangent Kernel},
+  author    = {Fort, Stanislav and Dziugaite, Gintare Karolina and Paul, Mansheej and Kharaghani, Sepideh and Roy, Daniel M. and Ganguli, Surya},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {33},
+  year      = {2020}
+}
+
+@inproceedings{singh2021analytic,
+  title     = {Analytic Insights into Structure and Rank of Neural Network Hessian Maps},
+  author    = {Singh, Sidak Pal and Bachmann, Gregor and Hofmann, Thomas},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {34},
+  year      = {2021}
+}
+
+@article{wu2020dissecting,
+  title   = {Dissecting Hessian: Understanding Common Structure of Hessian in Neural Networks},
+  author  = {Wu, Yikai and Zhu, Xingyu and Wu, Chenwei and Wang, Annie and Ge, Rong},
+  journal = {arXiv preprint arXiv:2010.04261},
+  year    = {2020}
+}
+
+@book{bonnans2000perturbation,
+  title     = {Perturbation Analysis of Optimization Problems},
+  author    = {Bonnans, J. Fr{\'e}d{\'e}ric and Shapiro, Alexander},
+  publisher = {Springer},
+  address   = {New York, NY},
+  year      = {2000},
+  doi       = {10.1007/978-1-4612-1394-9}
+}
+
+@article{davis1970rotation,
+  title   = {The Rotation of Eigenvectors by a Perturbation. III},
+  author  = {Davis, Chandler and Kahan, W. M.},
+  journal = {SIAM Journal on Numerical Analysis},
+  volume  = {7},
+  number  = {1},
+  pages   = {1--46},
+  year    = {1970},
+  doi     = {10.1137/0707001}
+}
+
+@article{simons1968minimal,
+  title   = {Minimal Varieties in Riemannian Manifolds},
+  author  = {Simons, James},
+  journal = {Annals of Mathematics},
+  volume  = {88},
+  number  = {1},
+  pages   = {62--105},
+  year    = {1968},
+  doi     = {10.2307/1970556}
+}
+
+@article{dambrine2019stability,
+  title   = {Stability in Shape Optimization with Second Variation},
+  author  = {Dambrine, Marc and Lamboley, Jimmy},
+  journal = {Journal of Differential Equations},
+  volume  = {267},
+  number  = {2},
+  pages   = {1249--1283},
+  year    = {2019}
 }

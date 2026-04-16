@@ -59,6 +59,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{pifont}
+\usepackage{wrapfig}
 \newcommand{\cmark}{\ding{51}}
 \newcommand{\xmark}{\ding{55}}
 
@@ -72,7 +73,7 @@
 \newtheorem{remark}{Remark}
 
 % Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote. 
-\title{Curvature-Subspace Criteria for Local Loss-Landscape Stabilization}
+\title{Curvature-Aligned Probing for Local Loss-Landscape Stabilization}
 
 
 % The \author macro works with any number of authors. There are two commands
@@ -85,13 +86,13 @@
 
 
 \author{%
-  Nikita Kiselev \\
-  Moscow Institute of Physics and Technology, Russia \\
-  \texttt{kiselev.ns@phystech.edu} \\
+  Name Surname \\
+  Affiliation, Address \\
+  \texttt{email} \\
   \And
-  Andrey Grabovoy \\
-  Moscow Institute of Physics and Technology, Russia \\
-  \texttt{grabovoy.av@phystech.edu}
+  Name Surname \\
+  Affiliation, Address \\
+  \texttt{email} \\
 }
 
 
@@ -102,7 +103,7 @@
 
 
 \begin{abstract}
-    Deep neural network loss landscapes exhibit strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections. We study how such landscapes stabilize as the training set grows one sample at a time. Prior criteria measure landscape change either pointwise or uniformly across the full parameter space, distributing weight equally across directions that contribute negligibly to landscape variation, and do not form a unified framework. We first introduce a unified family of local stabilization criteria parametrized by an aggregation order and a probing distribution, within which prior criteria arise as special cases. We then introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we prove that this criterion preserves the same mean-squared $\mathcal{O}(k^{-2})$ convergence rate as the full-space criterion, with curvature dependence governed by the subspace dimension $D$ rather than the ambient parameter dimension $N$. We also derive a spectral closed form under a stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products, subspace Monte Carlo, and quadratic proxy evaluation. Experiments on a nanochat decoder-only transformer show that the Gaussian-moment proxy estimator faithfully tracks the direct criterion across subspace dimensions $D\in[1,100]$ and perturbation scales within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while diverging outside it. In the evaluation stage after subspace construction, the proxy is approximately $18{,}000\times$ faster than direct Monte Carlo. These results position the proposed criterion as a well-defined curvature-aware observable within a unified framework for local landscape stabilization.
+    How should one measure whether a neural loss landscape has stabilized as the training set grows? Existing local criteria answer this question either pointwise or through isotropic averaging in the full parameter space. Both choices are restrictive: pointwise probes are fragile, while isotropic probes distribute mass across many directions that contribute little to the dominant local deformation of the landscape. We recast local loss-landscape stabilization as an observational problem and introduce a unified family of criteria parameterized by an aggregation order and a probing distribution. Within this framework, we propose a curvature-aware subspace criterion that measures the loss increment field in the top-$D$ eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we prove that this criterion preserves the full-space mean-squared $\mathcal O(k^{-2})$ rate while replacing ambient-dimension curvature dependence by dependence on the subspace dimension $D$. We also derive scalable estimators based on Hessian--vector products, subspace Monte Carlo, and Gaussian moment identities. Experiments on a decoder-only transformer show that the quadratic proxy is accurate in its valid local regime and that the closed-form estimator is dramatically faster than direct Monte Carlo after subspace construction. Together, these results identify curvature-aligned probing as a principled and tractable way to measure local landscape stabilization under sample growth.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -112,126 +113,78 @@
   \begin{minipage}[t]{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{criterion_general.pdf}\\[0.3em]
-    \small (a) Unified loss landscape stabilization criterion $\Delta_p$ with probing distribution $q(\mathbf{w})$
+    \small (a) Unified stabilization criterion $\Delta_p$ with probing distribution $q(\mathbf{w})$
   \end{minipage}\hfill
   \begin{minipage}[t]{0.48\linewidth}
     \centering
     \includegraphics[width=\linewidth]{criterion_squared_subspace.pdf}\\[0.3em]
-    \small (b) Principal Hessian subspace $\mathcal{S}_D$ squared criterion $\Delta_2^{(D)}$
+    \small (b) Curvature-aware subspace criterion $\Delta_2^{(D)}$
   \end{minipage}
-  \caption{\textbf{Loss landscape stabilization criteria.} (a) General framework with arbitrary probing distribution $q(\mathbf{w})$; previously studied pointwise and full-space criteria arise as special cases. (b) The proposed curvature-aware criterion $\Delta_2^{(D)}$, which probes the loss increment field on the principal Hessian eigenspace $\mathcal{S}_D$ spanned by the top-$D$ curvature directions.}
+  \caption{\textbf{Local stabilization as an observational problem.} Existing local criteria differ not only in aggregation order, but also in how they probe the increment field. Our criterion $\Delta_2^{(D)}$ restricts probing to the principal Hessian subspace spanned by the top-$D$ curvature directions.}
   \label{fig:overview}
 \end{figure}
 
-Training in deep learning depends not only on the value of the empirical risk at a solution, but also on the local geometry of the loss surface around that solution.
-A large empirical literature studies this geometry through loss-landscape visualizations, Hessian spectra, and local sharpness, consistently revealing strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections, while much of parameter space is weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
-Understanding how this geometry changes as training data grows has direct practical consequences: it underlies principled approaches to sample size estimation, early stopping, and data-efficient fine-tuning, where the key question is not just whether the empirical risk has converged, but whether the local loss geometry near a trained solution has stabilized.
-This raises a natural and largely open question: as training examples are added one by one, how does the local empirical landscape change near a trained solution, and how should that change be observed in a geometry-aware way?
+Local loss geometry is often summarized through quantities such as sharpness, curvature, or Hessian spectra, typically for a fixed trained model. Our setting is different: we ask how the empirical objective deforms locally as the training set grows. In this regime, the issue is not only which functional of the loss increment should be aggregated, but also which perturbation directions should be used to observe it. We therefore view local stabilization under sample growth as an observational problem rather than a purely pointwise or isotropic one.
 
-Classical statistical learning theory studies convergence of empirical risk to population risk~\citep{vapnik1998statistical,shalev2014understanding}, and algorithmic stability bounds the sensitivity of learned predictors to perturbations of the training set~\citep{bousquet2002stability,feldman2019high,bousquet2020sharper}.
-These frameworks are foundational, but they do not directly describe how local geometric quantities---such as gradients, Hessians, and their leading eigenspaces---change when one additional sample is incorporated.
-Prior work introduced local criteria for the increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ near a minimizer $\mathbf w_k^*$ of the $k$-sample empirical risk: a one-point criterion $\Delta_1$ with $\mathcal O(k^{-1})$ decay and a full-space mean-squared criterion $\Delta_2$ with $\mathcal O(k^{-2})$ decay.
-However, these criteria are not placed in a unified framework, and neither exploits the known curvature structure of the loss landscape.
+This issue is especially relevant in deep networks, where local geometry is strongly anisotropic. Empirical Hessian spectra typically concentrate much of their mass in a relatively small number of dominant directions, while much of parameter space remains weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}. Related work also suggests that optimization often occupies low-dimensional effective subspaces and that overparameterized models contain substantial geometric redundancy through flat or symmetry-induced directions~\citep{gurari2018tiny,li2018intrinsic,simsek2021geometry,draxler2018essentially,garipov2018mode}. These observations suggest that \emph{how} one probes local deformation should be part of the definition of stabilization, not merely part of the estimator.
 
-In this paper, we place such criteria in a unified framework.
-The increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ is a scalar field over parameter space, and any aggregated criterion for it depends not only on the aggregation order, but also on the probing distribution used to observe local change.
-This makes local landscape stabilization an \emph{observational} problem as well as a convergence problem.
-Within this framework, the previously studied pointwise and isotropic criteria appear as special cases corresponding to different probing laws, and the choice of probing distribution becomes part of the scientific question rather than merely an estimation detail.
+We study stabilization under one-sample growth. The object of interest is the increment field $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ near a trained solution $\mathbf w_k^*$. This places our work next to, but distinct from, classical sample-growth viewpoints. Statistical learning theory and algorithmic stability study convergence of empirical quantities, predictors, or generalization error under changes in the training set~\citep{vapnik1998statistical,shalev2014understanding,bousquet2002stability,hardt2016train,bousquet2020sharper}. Influence-function and infinitesimal-jackknife methods go one step closer by linking data perturbations to local first- and second-order structure~\citep{koh2017influence,giordano2019swiss,koh2019group,basu2020secondorder}. Our target is different: we study the local deformation of the \emph{empirical objective itself}.
 
-We study a curvature-aware specialization of this framework: the \emph{subspace mean-squared criterion} $\Delta_2^{(D)}$, illustrated in Fig.~\ref{fig:overview}, which restricts Gaussian perturbations to the top-$D$ eigenspace of the empirical Hessian $\mathbf H^{(k)}(\mathbf w_k^*)$, concentrating observation on the directions that carry the dominant second-order structure of the loss.
+We formalize this viewpoint through a unified family of local stabilization criteria parameterized by an aggregation order and a probing distribution; see Eq.~\eqref{eq:general-p-criterion}. This places previously studied one-point and isotropic mean-squared criteria into a common framework and makes the probing law part of the observable. We then propose a curvature-aware specialization, the subspace mean-squared criterion $\Delta_2^{(D)}$ in Eq.~\eqref{eq:delta2-subspace-method}, which restricts probing to the top-$D$ eigenspace of the empirical Hessian at $\mathbf w_k^*$.
 
-Our theoretical analysis studies the increment field near $\mathbf w_k^*$ under a local quadratic model.
-We derive a low-dimensional representation of the subspace criterion and prove that $\Delta_2^{(D)}$ preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with the curvature-dependent term governed by the subspace dimension $D$ rather than the ambient dimension $N$.
-Under an additional stable-eigenspace assumption, the compressed Hessian difference admits a spectral closed form in terms of leading eigenvalue increments.
-These results are local guarantees for this specific curvature-aware design, not universal statements about the loss landscape.
+Our main result shows that this geometric restriction does not incur a rate penalty under a local quadratic model. Theorem~\ref{thm:subspace-rate} proves that $\Delta_2^{(D)}$ preserves the $\mathcal O(k^{-2})$ mean-squared decay of the full-space criterion, while replacing ambient-dimension curvature dependence by dependence on the probing dimension $D$. In a stable-principal-directions regime, Appendix~\ref{app:proofs} further gives a spectral closed form and an extremality result for the top-$D$ choice within the eigenspace-aligned family.
 
-We also develop scalable estimators for $\Delta_2^{(D)}$ based on Hessian--vector products, top-$D$ eigenspace extraction, direct subspace Monte Carlo, and quadratic proxy estimators.
-This enables empirical comparison of pointwise, isotropic, and curvature-aware measurements of landscape stabilization on equal footing.
-In experiments on a nanochat decoder-only transformer, we establish the valid operating regime of the quadratic proxy and compare the three estimators across subspace dimensions and perturbation scales.
-The Gaussian-moment estimator is accurate across all tested $D\in[1,100]$ within the valid quadratic regime ($\sigma\lesssim10^{-3}$), and proxy accuracy degrades rapidly outside this regime.
+We also derive scalable estimators based on Hessian--vector products, subspace Monte Carlo, and a closed-form Gaussian-moment proxy. Empirically, we study how the proposed criteria decay with sample size, whether curvature-aligned probing differs from alternative subspace choices, and when the quadratic proxy is accurate enough to provide substantial computational savings.
 
-\paragraph{Contributions.} Our contributions can be summarized as follows:
+\paragraph{Contributions.}
+Our contributions are four-fold:
 \begin{itemize}
-    \item We introduce a unified family of local landscape stabilization criteria $\Delta_p$ parametrized by an aggregation order $p$ and a probing distribution $q(\mathbf{w})$, within which previously studied pointwise and full-space criteria arise as special cases.
-    \item Within this framework, we propose the curvature-aware subspace criterion $\Delta_2^{(D)}$, which probes the loss increment in the principal Hessian eigenspace near a local minimizer $\mathbf{w}_k^*$, and prove that it attains the same $\mathcal{O}(k^{-2})$ mean-squared convergence rate as the full-space criterion, with curvature dependence scaling through $D$ rather than the ambient dimension $N$.
-    \item We derive a spectral closed form for $\Delta_2^{(D)}$ under a stable-eigenspace assumption, and prove that the top-$D$ eigenspace maximizes the pure quadratic stabilization signal within the eigenspace-aligned family.
-    \item We propose and compare three scalable estimators---direct Monte Carlo, Quadratic MC, and the closed-form Gaussian-moment (GM) estimator---and show empirically that the GM estimator achieves faithful accuracy within the valid quadratic regime ($\sigma\lesssim10^{-3}$) while being approximately $18{,}000\times$ faster than direct MC in the evaluation stage after subspace construction.
+    \item We recast local loss-landscape stabilization under sample growth as an observational problem and introduce a unified family of criteria parameterized by an aggregation order and a probing distribution.
+    \item We propose a curvature-aware subspace criterion $\Delta_2^{(D)}$ that probes the increment field in the top-$D$ eigenspace of the empirical Hessian near a trained solution.
+    \item Under a local quadratic model, we prove that $\Delta_2^{(D)}$ preserves the full-space mean-squared $\mathcal O(k^{-2})$ rate, while replacing ambient-dimension curvature dependence by dependence on the probing dimension $D$.
+    \item We develop scalable estimators for the criterion and show empirically that the quadratic proxy is accurate in its valid local regime and substantially cheaper than direct Monte Carlo once the subspace has been constructed.
 \end{itemize}
 
 \section{Related Work}\label{sec:related}
 
-\paragraph{Loss landscapes, Hessian spectra, and sample-growth sensitivity.}
-Studies of neural loss geometry consistently reveal strong spectral anisotropy: the empirical Hessian spectrum decays rapidly, with most curvature energy concentrated in a small number of dominant eigendirections and the bulk of parameter space nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}.
-Analyses of eigenspaces, architectural structure, and random-matrix effects reinforce the view that local curvature is effectively low-dimensional~\citep{wu2021dissecting,singh2023hessian,baskerville2021rmt,meshkov2024convnets}.
-Classical learning theory and algorithmic stability address sample sensitivity at the level of risks or predictors~\citep{vapnik1998statistical,shalev2014understanding,bousquet2002stability,feldman2019high,bousquet2020sharper}, but not the local geometry of the landscape.
-The direct technical precursors are two local increment criteria studied in prior work: the one-point criterion $\Delta_1$ with $\mathcal O(k^{-1})$ decay and the full-space mean-squared criterion $\Delta_2$ with $\mathcal O(k^{-2})$ decay.
-Our work places these in a unified framework and introduces a curvature-aware specialization that probes the increment in a principal Hessian subspace.
+\paragraph{Loss geometry and anisotropic local structure.}
+A large literature studies neural loss landscapes through visualization, Hessian spectra, sharpness, and related curvature diagnostics. A recurring empirical finding is strong anisotropy: a relatively small number of eigendirections often account for much of the local second-order structure, while large parts of parameter space remain weakly curved or nearly flat~\citep{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining}. Related work further suggests that optimization can concentrate in low-dimensional subspaces and that overparameterized models exhibit geometric redundancy through symmetry or flat directions~\citep{gurari2018tiny,li2018intrinsic,simsek2021geometry,draxler2018essentially,garipov2018mode}. These works motivate geometry-aware probing, but they do not study sample-growth deformation of the empirical objective.
 
-\paragraph{Curvature-aware versus isotropic observation.}
-The distinction between isotropic and geometry-aligned probing is central to our paper.
-Prior Hessian-based studies suggest that full-space isotropic averaging may dilute the dominant modes of local change in strongly anisotropic models~\citep{sagun2017hessian,ghorbani2019investigation,wu2021dissecting}.
-Our criterion $\Delta_2^{(D)}$ turns this intuition into an explicit observational design by probing the increment $\mathcal L_{k+1}(\mathbf{w}) - \mathcal L_k(\mathbf{w})$ under Gaussian perturbations restricted to the top-$D$ curvature subspace at $\mathbf w_k^*$.
-For efficient implementation, we build on standard Hessian--vector products and scalable spectral tools for deep networks~\citep{pearlmutter1994fast,yao2020pyhessian}.
+\paragraph{Data perturbation, stability, and influence.}
+Classical statistical learning theory and algorithmic stability study how empirical risks, predictors, and generalization error behave as the training sample changes~\citep{vapnik1998statistical,shalev2014understanding,bousquet2002stability,hardt2016train,feldman2019high,bousquet2020sharper}. A closer neighboring literature analyzes infinitesimal or finite data perturbations through influence functions and infinitesimal-jackknife approximations, linking changes in the training set to local gradient and Hessian information~\citep{koh2017influence,giordano2019swiss,koh2019group,basu2020secondorder}. These are the closest conceptual precursors to our sample-growth viewpoint. The key difference is the observable: prior work typically measures the sensitivity of fitted parameters or predictions, whereas we measure the local deformation of the empirical objective itself through the increment field $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$.
 
-\paragraph{Adjacent but distinct directions.}
-Table~\ref{tab:positioning} summarizes how our work relates to several neighboring lines of research.
-Studies of sharpness, flat minima, and sharpness-aware optimization examine how local curvature relates to optimization and generalization, but fix the dataset and do not study how the landscape changes as data grows~\citep{keskar2017largebatch,dinh2017sharp,foret2021sam,dauphin2024neglected,luo2024eigensam}.
-The neural tangent kernel literature analyzes training dynamics in the infinite-width regime and does not address post-training local geometry~\citep{jacot2018ntk}.
-Recent work on dominant and bulk Hessian subspaces studies alignment of optimization trajectories with spectral components~\citep{song2025tiny,zhou2025bsfa}, whereas we study how the empirical landscape itself deforms under one-sample growth and how that deformation should be probed.
+\paragraph{Sharpness, dominant eigenspaces, and second-order methods.}
+Related work also studies flatness, sharpness, sharpness-aware optimization, and dominant Hessian eigenspaces~\citep{keskar2017largebatch,dinh2017sharp,foret2021sam,dauphin2024neglected,luo2024eigensam,singh2021analytic,wu2020dissecting}. These works ask which curvature directions matter for optimization or robustness on a fixed objective. Our question is different: given anisotropic local geometry, which probing law should be used to observe \emph{dataset-induced} deformation? On the computational side, our estimators rely on standard scalable second-order primitives---Hessian--vector products and iterative eigensolvers---rather than explicit Hessian construction~\citep{pearlmutter1994fast,yao2020pyhessian}. Thus, our contribution is not a new second-order tool, but a geometry-aware observable for sample-growth stabilization.
 
-\begin{table}[h]
-\caption{Positioning relative to related lines of work. \cmark~= addressed; \xmark~= not addressed.}
+\begin{table}[t]
+\caption{Positioning relative to adjacent directions. \cmark~= central focus; \xmark~= not a primary focus.}
 \label{tab:positioning}
 \begin{center}
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{p{4.4cm}ccc}
 \toprule
-\textbf{Direction} & \textbf{Sample-growth sensitivity} & \textbf{Local geometry} & \textbf{Curvature-aware probing} \\
+\textbf{Direction} & \textbf{Data perturbation} & \textbf{Local objective} & \textbf{Geometric probe} \\
 \midrule
-Statistical learning theory      & \cmark & \xmark & \xmark \\
-Algorithmic stability            & \cmark & \xmark & \xmark \\
-Sharpness / SAM                  & \xmark & \cmark & \cmark \\
-NTK                              & \xmark & \cmark & \xmark \\
-Hessian subspace analysis        & \xmark & \cmark & \cmark \\
-Prior increment criteria         & \cmark & \cmark & \xmark \\
-\textbf{This work}               & \cmark & \cmark & \cmark \\
+Statistical learning theory~\citenum{vapnik1998statistical,shalev2014understanding} & \cmark & \xmark & \xmark \\
+Algorithmic stability~\citenum{bousquet2002stability,hardt2016train,feldman2019high,bousquet2020sharper} & \cmark & \xmark & \xmark \\
+Influence / infinitesimal jackknife~\citenum{koh2017influence,giordano2019swiss,koh2019group,basu2020secondorder} & \cmark & \xmark & \xmark \\
+Sharpness / SAM~\citenum{keskar2017largebatch,dinh2017sharp,foret2021sam,dauphin2024neglected,luo2024eigensam} & \xmark & \xmark & \cmark \\
+Hessian spectrum / subspace analysis~\citenum{li2018visualizing,sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,xu2024mining,gurari2018tiny,li2018intrinsic,singh2021analytic,wu2020dissecting} & \xmark & \xmark & \cmark \\
+Prior increment criteria ($\Delta_1$, $\Delta_2$) & \cmark & \cmark & \xmark \\
+\textbf{This work} & \cmark & \cmark & \cmark \\
 \bottomrule
 \end{tabular}
 \end{center}
 \end{table}
 
-\section{Preliminaries}
-\label{sec:prelim}
-
-\paragraph{Empirical risk and loss landscape.}
-Let $(\mathbf{x}, \mathbf{y}) \in \mathbb{X} \times \mathbb{Y}$ denote an input--label pair, and let $\mathfrak{D}_m = \{(\mathbf{x}_i, \mathbf{y}_i)\}_{i=1}^m$ be a training sample of size $m$, drawn i.i.d.\ from an unknown distribution $p(\mathbf{x}, \mathbf{y})$.
-Consider a parametric model $f_{\mathbf w} : \mathbb{X} \to \mathbb{Y}$, $\mathbf w \in \mathbb{R}^N$, trained by minimizing the empirical risk
-\begin{equation}
-\label{eq:empirical-loss}
-\mathcal{L}_m(\mathbf w)
-=
-\frac{1}{m}\sum_{i=1}^m \ell\bigl(f_{\mathbf w}(\mathbf x_i), \mathbf y_i\bigr)
-=
-\frac{1}{m}\sum_{i=1}^m \ell_i(\mathbf w),
-\end{equation}
-where $\ell:\mathbb{Y}\times\mathbb{Y}\to\mathbb{R}_+$ is a per-example loss.
-Let
-\begin{equation}
-\label{eq:erm-min}
-\mathbf w_m^* \in \arg\min_{\mathbf w\in\mathbb R^N} \mathcal L_m(\mathbf w)
-\end{equation}
-denote a minimizer of the empirical risk.
-We refer to the graph of $\mathcal L_m(\mathbf w)$ over $\mathbb R^N$ as the \emph{loss landscape}.
-Our focus is not only on the value of $\mathcal L_m$ at $\mathbf w_m^*$, but on how the local geometry of the empirical landscape changes near trained solutions as the sample size grows.
-
-The one-sample increment $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$ measures the deformation of the loss surface induced by one additional training example.
-Since this increment is a scalar field over parameter space, its stabilization near trained solutions must be quantified through an aggregated observable whose properties depend on both what is aggregated and where.
-
 \section{Method}
 \label{sec:method}
 
-\paragraph{Unified criterion of local landscape stabilization.}
-We introduce the following unified family of local stabilization criteria: for $p\ge 1$,
+\paragraph{Notation.}
+Let $\mathfrak{D}_m = \{(\mathbf{x}_i, \mathbf{y}_i)\}_{i=1}^m$ be a training sample of size $m$, and let $\mathcal{L}_m(\mathbf w) = \frac{1}{m}\sum_{i=1}^m \ell\bigl(f_{\mathbf w}(\mathbf x_i), \mathbf y_i\bigr) = \frac{1}{m}\sum_{i=1}^m \ell_i(\mathbf w)$ be the empirical risk of a parametric model, i.e., a neural network $f_{\mathbf w}$, with minimizer $\mathbf w_m^* \in \arg\min_{\mathbf w\in\mathbb R^N} \mathcal L_m(\mathbf w)$. Our object of interest is the one-sample increment field $\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)$, which measures how the empirical landscape changes when one example is added. Since this increment is a scalar field over parameter space, any local notion of stabilization depends both on what is aggregated and on how the field is probed.
+
+\paragraph{Unified family of stabilization criteria.}
+For $p\ge 1$, we define a general criterion
 \begin{equation}
 \label{eq:general-p-criterion}
 \Delta_p(k+1)
@@ -242,25 +195,31 @@ We introduce the following unified family of local stabilization criteria: for $
 \bigr|^p
 \, q(\mathbf w)\, d\mathbf w,
 \end{equation}
-where $q$ is a probing distribution concentrated near $\mathbf w_k^*$.
-A stabilization criterion is thus determined jointly by the aggregation order $p$ and the probing law $q$, which selects which regions and directions of parameter space are emphasized.
-Previously studied criteria arise as special cases:
+where $q$ is a probing distribution concentrated near $\mathbf w_k^*$. This definition makes the probing law part of the criterion itself rather than part of the estimator. Previously studied criteria arise as special cases:
 \begin{align}
-\Delta_1(k+1) &= \bigl|\mathcal{L}_{k+1}(\mathbf{w}_k^*)-\mathcal{L}_k(\mathbf{w}_k^*)\bigr|
-&&(p=1,\; q=\delta_{\mathbf{w}_k^*}),\label{eq:delta1-special}\\
-\Delta_2(k+1) &= \int_{\mathbb{R}^N}\bigl(\mathcal{L}_{k+1}(\mathbf{w})-\mathcal{L}_k(\mathbf{w})\bigr)^2 q(\mathbf{w})\,d\mathbf{w}
-&&(p=2,\; q=\mathcal{N}(\mathbf{w}_k^*,\sigma^2\mathbf{I}_N)).\label{eq:delta2-special}
+\Delta_1(k+1)
+&=
+\bigl|
+\mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*)
+\bigr|,
+&&
+q=\delta_{\mathbf w_k^*},
+\label{eq:delta1-special}
+\\
+\Delta_2(k+1)
+&=
+\int_{\mathbb R^N}
+\bigl(
+\mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
+\bigr)^2
+q(\mathbf w)\,d\mathbf w,
+&&
+q=\mathcal N(\mathbf w_k^*,\sigma^2\mathbf I_N).
+\label{eq:delta2-special}
 \end{align}
-This unified language makes it possible to compare pointwise, isotropic, and curvature-aware notions of stabilization within a single formal setup, and makes the choice of probing distribution an explicit part of the scientific question rather than merely an estimation detail.
-In the remainder of this section, we study a curvature-aware specialization obtained by restricting $q$ to a subspace aligned with dominant local curvature near $\mathbf w_k^*$.
 
-\paragraph{Principal curvature subspace.}
-Let $\mathbf w_k^*$ be a local minimizer of $\mathcal L_k$, and let $\mathbf H^{(k)}(\mathbf w_k^*) = \mathbf U \mathbf \Lambda \mathbf U^\top$ be the eigendecomposition of the empirical Hessian at $\mathbf w_k^*$, with eigenvalues ordered as $\lambda_1^{(k)} \ge \lambda_2^{(k)} \ge \cdots \ge \lambda_N^{(k)}$. Let $\mathbf U_D=[\mathbf u_1,\dots,\mathbf u_D]$ denote the matrix of the first $D$ eigenvectors, and define $\mathcal S_D=\operatorname{Im}(\mathbf U_D)$ to be the corresponding $D$-dimensional \emph{principal curvature subspace}.
-This subspace provides a natural local coordinate system for curvature-aware perturbations around $\mathbf w_k^*$.
-
-\paragraph{Subspace mean-squared criterion.}
-We now specialize \eqref{eq:general-p-criterion} to the mean-squared case $p=2$, with the probing law supported on the affine subspace $\mathbf w_k^*+\mathcal S_D$.
-This yields the \emph{subspace mean-squared criterion}
+\paragraph{Curvature-aligned subspace probe.}
+In strongly anisotropic models, isotropic perturbations spread mass across many directions that contribute little to the dominant local second-order structure~\citep{sagun2017hessian,ghorbani2019investigation,papyan2019fullspectrum,gurari2018tiny}. We therefore align the probe with the leading curvature directions at $\mathbf w_k^*$. Let $\mathbf H^{(k)}(\mathbf w_k^*) = \mathbf U \mathbf \Lambda \mathbf U^\top$, $\lambda_1^{(k)} \ge \cdots \ge \lambda_N^{(k)}$, and let $\mathbf U_D=[\mathbf u_1,\dots,\mathbf u_D]$ denote the top-$D$ eigenvectors, with principal curvature subspace $\mathcal S_D=\operatorname{Im}(\mathbf U_D)$. We then define the \emph{subspace mean-squared criterion}
 \begin{equation}
 \label{eq:delta2-subspace-method}
 \Delta_2^{(D)}(k+1)
@@ -271,68 +230,22 @@ This yields the \emph{subspace mean-squared criterion}
 \bigr)^2
 \, q(\mathbf w)\, d\mathbf w,
 \end{equation}
-where $q$ is supported on $\mathbf w_k^*+\mathcal S_D$.
-Throughout the paper, we parameterize this affine subspace as
-\[
-\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z,
-\qquad
-\mathbf z\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_D),
-\]
-so that $\Delta_2^{(D)}(k+1)$ measures the mean-squared increment under Gaussian perturbations restricted to the principal curvature subspace.
-
-All three criteria---$\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$---are illustrated in Fig.~\ref{fig:criteria-overview}.
-
-\begin{figure}[t]
-  \centering
-  \begin{minipage}[t]{0.32\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{criterion_abs.pdf}\\[0.3em]
-    \small (a) Absolute one-point criterion~$\Delta_1$
-  \end{minipage}\hfill
-  \begin{minipage}[t]{0.32\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{criterion_squared.pdf}\\[0.3em]
-    \small (b) Full-space mean-squared criterion~$\Delta_2$
-  \end{minipage}\hfill
-  \begin{minipage}[t]{0.32\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{criterion_squared_subspace.pdf}\\[0.3em]
-    \small (c) Subspace mean-squared criterion~$\Delta_2^{(D)}$
-  \end{minipage}
-  \caption{
-  Schematic view of three observational designs for local landscape stabilization:
-  (a) pointwise probing at a single location near $\mathbf w_k^*$;
-  (b) isotropic mean-squared probing in the full parameter space;
-  (c) mean-squared probing restricted to the principal curvature subspace.
-  }
-  \label{fig:criteria-overview}
-\end{figure}
-
-% \paragraph{Preview of the analysis.}
-% The next section studies $\Delta_2^{(D)}$ under a local quadratic model of the increment field near $\mathbf w_k^*$.
-% We show that the subspace criterion preserves the mean-squared $\mathcal O(k^{-2})$ decay of the full-space criterion and derive a low-dimensional representation of the increment in the principal curvature subspace.
+with the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, where $\mathbf z\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$. The distinction between $\Delta_2$ and $\Delta_2^{(D)}$ is therefore not merely dimensional: $\Delta_2$ probes the increment isotropically in $\mathbb R^N$, whereas $\Delta_2^{(D)}$ probes it through the dominant local curvature modes of the empirical landscape.
 
 \section{Theoretical analysis}
 \label{sec:theory}
 
-The central theoretical question is whether restricting probing to a $D$-dimensional subspace costs anything in terms of convergence rate.
-Theorem~\ref{thm:subspace-rate} shows it does not: $\Delta_2^{(D)}$ attains the same $\mathcal O(k^{-2})$ rate as the full-space criterion, with the curvature-dependent term scaling through $D$ rather than $N$.
-Corollary~\ref{cor:spectral} then gives an explicit spectral form when eigenspace structure is stable across one-sample increments, and Lemma~\ref{lemma:extremal-topD} shows that the top-$D$ eigenspace maximises the stabilization signal within the eigenspace-aligned family.
-All results are derived under a local quadratic model near $\mathbf w_k^*$ and should be read as local guarantees.
+The main theoretical question is whether curvature-aligned probing loses anything relative to isotropic full-space observation. Our answer is no at the level of the mean-squared rate: under the local quadratic model in Eqs.~\eqref{eq:taylor-quadratic}--\eqref{eq:loss-diff-minimum}, the subspace criterion $\Delta_2^{(D)}$ preserves the $\mathcal O(k^{-2})$ decay of the full-space criterion while replacing ambient-dimension curvature dependence by dependence on the probing dimension $D$; see Theorem~\ref{thm:subspace-rate}.
 
-\paragraph{Exact increment under one-sample growth.}
-Adding one training example $(\mathbf x_{k+1}, \mathbf y_{k+1})$ to $\mathfrak D_k = \{(\mathbf x_i, \mathbf y_i)\}_{i=1}^k$ gives the exact identity
+\paragraph{Exact increment and local quadratic model.}
+Adding one training example to $\mathfrak D_k$ gives the identity
 \begin{equation}
 \label{eq:loss-increment-exact}
 \mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
 =
 \frac{1}{k+1}\Bigl(\ell_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)\Bigr).
 \end{equation}
-The factor $(k+1)^{-1}$ is what drives the $\mathcal O(k^{-2})$ decay of the squared criterion: squaring and integrating over the probing distribution yields a bound proportional to $(k+1)^{-2}$ whenever the per-example quantities $\ell_{k+1}$ and $\mathcal L_k$ remain bounded.
-
-\paragraph{Local quadratic model.}
-Fix $\mathbf w_0\in\mathbb R^N$ and assume that $\mathcal L_k$ and $\mathcal L_{k+1}$ are twice continuously differentiable in a neighborhood of $\mathbf w_0$.
-Using second-order Taylor expansions at $\mathbf w_0$, we write
+This factor $(k+1)^{-1}$ is the source of the $\mathcal O(k^{-2})$ scaling for squared criteria. Fix $\mathbf w_0\in\mathbb R^N$ and assume that $\mathcal L_k$ and $\mathcal L_{k+1}$ are twice continuously differentiable near $\mathbf w_0$. Their second-order Taylor expansions give
 \begin{equation}
 \label{eq:taylor-quadratic}
 \mathcal L_m(\mathbf w)
@@ -343,65 +256,47 @@ Using second-order Taylor expansions at $\mathbf w_0$, we write
 +
 \frac12(\mathbf w-\mathbf w_0)^\top \mathbf H^{(m)}(\mathbf w_0)(\mathbf w-\mathbf w_0),
 \end{equation}
-where
-\[
-\mathbf g^{(m)}(\mathbf w)=\nabla_{\mathbf w}\mathcal L_m(\mathbf w),
-\qquad
-\mathbf H^{(m)}(\mathbf w)=\nabla_{\mathbf w}^2\mathcal L_m(\mathbf w).
-\]
-Subtracting the quadratic expansions of $\mathcal L_{k+1}$ and $\mathcal L_k$ at the same reference point yields the local quadratic model of the increment field:
+where $\mathbf g^{(m)}=\nabla \mathcal L_m$ and $\mathbf H^{(m)}=\nabla^2 \mathcal L_m$. Subtracting the two expansions yields a quadratic model for the increment field:
 \begin{multline}
 \label{eq:loss-diff-second}
 \mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
 \approx
 \mathcal L_{k+1}(\mathbf w_0)-\mathcal L_k(\mathbf w_0)
-\\
 +
-\Bigl(\mathbf g^{(k+1)}(\mathbf w_0)-\mathbf g^{(k)}(\mathbf w_0)\Bigr)^\top(\mathbf w-\mathbf w_0)
+\bigl(\mathbf g^{(k+1)}(\mathbf w_0)-\mathbf g^{(k)}(\mathbf w_0)\bigr)^\top(\mathbf w-\mathbf w_0)
 \\
 +
 \frac12(\mathbf w-\mathbf w_0)^\top
-\Bigl(\mathbf H^{(k+1)}(\mathbf w_0)-\mathbf H^{(k)}(\mathbf w_0)\Bigr)
+\bigl(\mathbf H^{(k+1)}(\mathbf w_0)-\mathbf H^{(k)}(\mathbf w_0)\bigr)
 (\mathbf w-\mathbf w_0).
 \end{multline}
-All results below are derived for this local quadratic model rather than for the exact increment outside the approximation regime.
 
-\paragraph{Centering at a minimizer of $\mathcal L_k$.}
-Set $\mathbf w_0=\mathbf w_k^*$, where $\mathbf w_k^*$ is a local minimizer of $\mathcal L_k$.
-Since $\mathbf g^{(k)}(\mathbf w_k^*)=\mathbf 0$, \eqref{eq:loss-diff-second} becomes
-\begin{multline}
+We now set $\mathbf w_0=\mathbf w_k^*$, where $\mathbf w_k^*$ is a local minimizer of $\mathcal L_k$. Since $\mathbf g^{(k)}(\mathbf w_k^*)=\mathbf 0$, the increment simplifies to
+\begin{equation}
 \label{eq:loss-diff-minimum}
 \mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
 \approx
-\underbrace{\mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*)}_{\text{value gap}}
-\\
+a_k
 +
-\underbrace{\mathbf g^{(k+1)}(\mathbf w_k^*)^\top(\mathbf w-\mathbf w_k^*)}_{\text{gradient mismatch}}
+\mathbf g^{(k+1)}(\mathbf w_k^*)^\top(\mathbf w-\mathbf w_k^*)
 +
-\underbrace{\frac12(\mathbf w-\mathbf w_k^*)^\top
-\Bigl(\mathbf H^{(k+1)}(\mathbf w_k^*)-\mathbf H^{(k)}(\mathbf w_k^*)\Bigr)
-(\mathbf w-\mathbf w_k^*)}_{\text{curvature mismatch}}.
-\end{multline}
-This decomposition drives the subspace reduction and rate analysis below.
+\frac12(\mathbf w-\mathbf w_k^*)^\top
+\mathbf A_k
+(\mathbf w-\mathbf w_k^*),
+\end{equation}
+where $a_k=\mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*)$, $\mathbf A_k=\mathbf H^{(k+1)}(\mathbf w_k^*)-\mathbf H^{(k)}(\mathbf w_k^*)$.
 
-\paragraph{Subspace-supported observation of the increment.}
-Under the local quadratic model \eqref{eq:loss-diff-minimum}, restricting probing to any $D$-dimensional subspace $\mathcal S(\mathbf V)=\operatorname{Im}(\mathbf V)$ ($\mathbf V\in\mathbb R^{N\times D}$ orthonormal) reduces the increment to a low-dimensional quadratic in the coordinate $\mathbf z$, where $\mathbf w=\mathbf w_k^*+\mathbf V\mathbf z$.
-The resulting subspace criterion $\Delta_2^{(\mathbf V)}$ is therefore entirely determined by three compressed objects:
+\paragraph{Subspace reduction.}
+Restricting the probe to a $D$-dimensional subspace turns the increment into a low-dimensional quadratic form. In particular, for the principal curvature subspace $\mathcal S_D=\operatorname{Im}(\mathbf U_D)$ with parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the criterion depends only on the compressed quantities
 \[
-a_k = \mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*),
-\quad
-\mathbf c_{k,\mathbf V} = \mathbf V^\top \mathbf g^{(k+1)}(\mathbf w_k^*),
-\quad
-\mathbf B_{k,\mathbf V} = \mathbf V^\top \mathbf A_k \mathbf V,
+\mathbf c_k=\mathbf U_D^\top\mathbf g^{(k+1)}(\mathbf w_k^*),
+\qquad
+\mathbf B_k=\mathbf U_D^\top\mathbf A_k\mathbf U_D.
 \]
-where $\mathbf A_k=\mathbf H^{(k+1)}(\mathbf w_k^*)-\mathbf H^{(k)}(\mathbf w_k^*)$.
-We specialize to the Hessian eigenspaces of $\mathbf H^{(k)}(\mathbf w_k^*)$ because they provide a spectral basis for the local quadratic geometry of $\mathcal L_k$ at $\mathbf w_k^*$, making the resulting criterion interpretable in terms of curvature modes.
 
 \begin{lemma}[Reduction on the principal curvature subspace]
 \label{lem:subspace-reduction}
-Let $\mathbf U_D=[\mathbf u_1,\dots,\mathbf u_D]\in\mathbb R^{N\times D}$ contain the top-$D$ eigenvectors of $\mathbf H^{(k)}(\mathbf w_k^*)$, and set $\mathbf c_k=\mathbf U_D^\top\mathbf g^{(k+1)}(\mathbf w_k^*)$, $\mathbf B_k=\mathbf U_D^\top\mathbf A_k\mathbf U_D$.
-Suppose $\operatorname{supp}(q)\subset (\mathbf w_k^*+\mathcal S_D)\cap \mathcal U_R(\mathbf w_k^*)$.
-Under the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the distribution $q$ induces $\tilde q$ on $\mathbb R^D$, and
+Suppose $\operatorname{supp}(q)\subset (\mathbf w_k^*+\mathcal S_D)\cap \mathcal U_R(\mathbf w_k^*)$. Under the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the induced probing law $\tilde q$ on $\mathbb R^D$ satisfies
 \begin{equation}
 \label{eq:subspace-reduction-integral}
 \Delta_2^{(D)}(k+1)
@@ -410,19 +305,17 @@ Under the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the d
 \left(
 a_k + \mathbf c_k^\top \mathbf z + \frac12 \mathbf z^\top \mathbf B_k \mathbf z
 \right)^2
-\, \tilde q(\mathbf z) d\mathbf z.
+\, \tilde q(\mathbf z)\, d\mathbf z.
 \end{equation}
 \end{lemma}
+The proof is given in Appendix~\ref{app:proofs}.
 
-Here $\mathbf B_k$ is the compression of the Hessian difference $\mathbf A_k$ to the principal curvature subspace.
-In general, $\mathbf B_k$ need not be diagonal, since the eigenvectors of $\mathbf H^{(k)}(\mathbf w_k^*)$ need not be eigenvectors of $\mathbf H^{(k+1)}(\mathbf w_k^*)$.
-
-\paragraph{Rate bound for the principal-subspace criterion.}
-To state the asymptotic rate, we require that the per-example quantities at the sequential minimizers remain uniformly bounded.
+\paragraph{Main rate result.}
+The main rate bound requires only local boundedness at the sequential minimizers.
 
 \begin{assumption}[Uniform boundedness at sequential minimizers]
 \label{ass:uniform-bounds}
-There exist constants $M_\ell, M_{\mathbf g}, M_{\mathbf H}>0$, independent of $k$, such that for all $k\ge 1$ and all $i=1,\dots,k+1$:
+There exist constants $M_\ell, M_{\mathbf g}, M_{\mathbf H}>0$, independent of $k$, such that for all $k\ge 1$ and all $i=1,\dots,k+1$,
 \[
 |\ell_i(\mathbf w_k^*)| \le M_\ell,
 \qquad
@@ -431,14 +324,11 @@ There exist constants $M_\ell, M_{\mathbf g}, M_{\mathbf H}>0$, independent of $
 \|\mathbf H_i(\mathbf w_k^*)\|_2 \le M_{\mathbf H}.
 \]
 \end{assumption}
-
-Under this assumption, the principal-subspace criterion preserves the same mean-squared $\mathcal O(k^{-2})$ decay as the full-space criterion, with the curvature-dependent term scaling through $D$ rather than $N$.
+This assumption is used in the proof of Theorem~\ref{thm:subspace-rate}; see Appendix~\ref{app:proofs}.
 
 \begin{theorem}[Subspace mean-squared rate]
 \label{thm:subspace-rate}
-Suppose Lemma~\ref{lem:subspace-reduction} and Assumption~\ref{ass:uniform-bounds} hold.
-Let $\tilde q(\mathbf z)=\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$.
-Then
+Suppose Lemma~\ref{lem:subspace-reduction} and Assumption~\ref{ass:uniform-bounds} hold, and let $\tilde q(\mathbf z)=\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$. Then
 \begin{equation}
 \label{eq:subspace-rate-bound}
 \Delta_2^{(D)}(k+1)
@@ -455,89 +345,41 @@ Then
 \end{equation}
 \end{theorem}
 
-Thus the rate matches the full-space mean-squared criterion, while the curvature-dependent term scales with $D$ rather than the ambient dimension $N$.
+The proof is given in Appendix~\ref{app:proofs}. Theorem~\ref{thm:subspace-rate} is a no-rate-loss statement under geometric compression. The criterion is evaluated on a $D$-dimensional curvature-aligned probe rather than under isotropic perturbations in $\mathbb R^N$, yet its mean-squared decay matches that of the full-space criterion.
 
-\paragraph{Spectral interpretation under stable principal directions.}
-The rate bound above does not require any alignment between the eigenspaces of $\mathbf H^{(k)}(\mathbf w_k^*)$ and $\mathbf H^{(k+1)}(\mathbf w_k^*)$.
-For interpretation, we now isolate the special case in which the leading directions remain stable.
-
-\begin{assumption}[Stable principal directions (optional)]
-\label{ass:stable-principal}
-The eigenvectors $\mathbf u_1,\dots,\mathbf u_D$ associated with the $D$ largest eigenvalues of $\mathbf H^{(k)}(\mathbf w_k^*)$ are also eigenvectors of $\mathbf H^{(k+1)}(\mathbf w_k^*)$:
-\[
-\mathbf H^{(k+1)}(\mathbf w_k^*)\,\mathbf u_i
-=
-\lambda_i^{(k+1)}\mathbf u_i,
-\qquad i=1,\dots,D.
-\]
-\end{assumption}
-
-Under Assumption~\ref{ass:stable-principal},
-\[
-\mathbf B_k
-=
-\operatorname{diag}\bigl(
-\lambda_1^{(k+1)}-\lambda_1^{(k)},
-\dots,
-\lambda_D^{(k+1)}-\lambda_D^{(k)}
-\bigr).
-\]
-
-\begin{corollary}[Spectral closed form under vanishing linear and value terms]
-\label{cor:spectral}
-Suppose Assumption~\ref{ass:stable-principal} holds, $\tilde q(\mathbf z)=\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$, and $a_k=0$, $\mathbf c_k=\mathbf 0$.
-Then
-\begin{equation}
-\label{eq:spectral-closed-form}
-\Delta_2^{(D)}(k+1)
-=
-\frac{\sigma^4}{4}
-\left(
-2\sum_{i=1}^D (\lambda_i^{(k+1)}-\lambda_i^{(k)})^2
-+
-\left(
-\sum_{i=1}^D (\lambda_i^{(k+1)}-\lambda_i^{(k)})
-\right)^2
-\right).
-\end{equation}
-\end{corollary}
-
-This gives a direct spectral expression for the subspace criterion in the stable-eigenspace regime.
-The conditions $a_k=0$ and $\mathbf c_k=\mathbf 0$ are idealizations that are approximately satisfied at large $k$, when $a_k=\mathcal O(k^{-1})$ becomes negligible and the gradient mismatch $\mathbf g^{(k+1)}(\mathbf w_k^*)$ is small because $\mathbf w_k^*$ is close to a minimizer of $\mathcal L_{k+1}$ as well.
-
-\paragraph{Why the top-curvature subspace?}
-Within the eigenspace-aligned family and under the pure quadratic regime, the top-$D$ eigenspace of $\mathbf H^{(k)}(\mathbf w_k^*)$ uniquely maximizes the stabilization signal $\Delta_2^{(D)}$ over all $D$-dimensional eigenspace-aligned subspaces (Lemma~\ref{lemma:extremal-topD}, Appendix~\ref{app:proofs}).
-This provides a principled justification for the top-$D$ choice; the formal statement and proof, including the simultaneously-diagonalizable assumption required for this result, are given in the Appendix.
+\paragraph{Spectral interpretation.}
+Under an additional stable-principal-directions regime, the compressed Hessian difference $\mathbf B_k$ becomes diagonal in the principal basis, and the criterion admits a closed form in terms of leading eigenvalue increments; see Corollary~\ref{cor:spectral} in Appendix~\ref{app:proofs}. Its proof is also given in Appendix~\ref{app:proofs}. A further appendix result, Lemma~\ref{lemma:extremal-topD}, shows that in the pure quadratic eigenspace-aligned regime, the top-$D$ eigenspace maximizes the stabilization signal among all $D$-dimensional eigenspace-aligned subspaces.
 
 \section{Algorithmic estimation at scale}
 \label{sec:algo}
 
-Lemma~\ref{lem:subspace-reduction} shows that $\Delta_2^{(D)}$ is fully determined by three compressed objects: the scalar value gap $a_k$, the projected gradient $\mathbf c_k\in\mathbb R^D$, and the compressed Hessian difference $\mathbf B_k\in\mathbb R^{D\times D}$.
-The estimators below differ in how they use these objects: direct Monte Carlo bypasses them entirely and targets the true criterion, while the two proxy estimators assemble $(a_k,\mathbf c_k,\mathbf B_k)$ once and then evaluate the quadratic surrogate cheaply.
-All subspace-based estimators share the same two-stage structure: first construct the principal curvature subspace at $\mathbf w_k^*$, then estimate either the true criterion or its quadratic surrogate within that subspace.
+Lemma~\ref{lem:subspace-reduction} and Eq.~\eqref{eq:subspace-reduction-integral} show that, once the probe is restricted to the principal curvature subspace, the criterion is determined by three compressed objects: the scalar value gap $a_k$, the projected gradient $\mathbf c_k\in\mathbb R^D$, and the compressed Hessian difference $\mathbf B_k\in\mathbb R^{D\times D}$.
+This leads to a simple estimator taxonomy.
+One estimator targets the true criterion directly.
+Two cheaper estimators target its local quadratic surrogate.
+All three share the same first step: construct the principal curvature subspace at $\mathbf w_k^*$.
 
 \paragraph{Cost notation.}
 Let $C_{\mathrm{fwd}}(m)$ denote the cost of one forward evaluation of $\mathcal L_m(\mathbf w)$, $C_{\mathrm{bwd}}(m)$ the cost of one backward pass, and $C_{\mathrm{HVP}}(m)$ the cost of one Hessian--vector product with $\mathbf H^{(m)}(\mathbf w)$.
-We write $S$ for the number of Monte Carlo samples, $D$ for the subspace dimension, and $T_{\mathrm{eig}}$ for the number of eigensolver iterations.
+We write $S$ for the Monte Carlo sample count, $D$ for the subspace dimension, and $T_{\mathrm{eig}}$ for the number of eigensolver iterations.
 
-\paragraph{Stage I: principal curvature subspace.}
-For each $k$, we construct the principal curvature subspace at $\mathbf w_k^*$ by computing the top-$D$ eigenvectors of $\mathbf H^{(k)}(\mathbf w_k^*)$ using HVP-based iterative eigensolvers such as Lanczos or LOBPCG~\citep{pearlmutter1994fast}.
-If each iteration requires $\mathcal O(D)$ HVPs, the total cost is
+\paragraph{Shared step: principal curvature subspace.}
+For each $k$, we compute the top-$D$ eigenvectors of $\mathbf H^{(k)}(\mathbf w_k^*)$ using HVP-based iterative eigensolvers such as Lanczos or LOBPCG, following the standard scalable second-order toolkit initiated by Pearlmutter and used in modern Hessian-analysis frameworks such as PyHessian~\citep{pearlmutter1994fast,yao2020pyhessian}. If each iteration requires $\mathcal O(D)$ Hessian--vector products, the one-time subspace construction cost is
 \[
 \mathcal O\!\bigl(T_{\mathrm{eig}}\,D\,C_{\mathrm{HVP}}(k)\bigr).
 \]
-This is a one-time setup cost per value of $k$ shared by all subspace-based estimators.
+This cost is shared by all subspace-based estimators below.
 
-\paragraph{Direct estimation of the true subspace criterion.}
-Sampling
+\paragraph{Direct Monte Carlo for the true criterion.}
+The most faithful estimator samples directly from the subspace probe:
 \[
 \mathbf z_s \sim \mathcal N(\mathbf 0,\sigma^2\mathbf I_D),
 \qquad
 \mathbf w_s=\mathbf w_k^*+\mathbf U_D\mathbf z_s,
 \qquad
-s=1,\dots,S,
+s=1,\dots,S.
 \]
-gives the Monte Carlo estimator
+This gives
 \begin{equation}
 \label{eq:direct-subspace-mc}
 \widehat{\Delta}_{2,\mathrm{dir}}^{(D)}(k+1)
@@ -547,8 +389,7 @@ gives the Monte Carlo estimator
 \mathcal L_{k+1}(\mathbf w_s)-\mathcal L_k(\mathbf w_s)
 \Bigr)^2.
 \end{equation}
-This estimator targets the true criterion $\Delta_2^{(D)}$ and does not rely on the quadratic approximation.
-Its total cost is
+It estimates the true criterion $\Delta_2^{(D)}$ and does not rely on the quadratic approximation. Its post-subspace cost is
 \[
 \mathcal O\!\left(
 S\bigl(
@@ -558,8 +399,8 @@ ND + C_{\mathrm{fwd}}(k)+C_{\mathrm{fwd}}(k+1)
 \]
 typically dominated by the two forward evaluations per sample.
 
-\paragraph{Quadratic surrogate estimators.}
-Under the local quadratic model from Section~\ref{sec:theory}, the increment in the principal curvature subspace is approximated by
+\paragraph{Quadratic surrogate and its coefficients.}
+Under the local quadratic model from Section~\ref{sec:theory}, the increment restricted to the principal curvature subspace is approximated by
 \[
 a_k + \mathbf c_k^\top \mathbf z + \frac12 \mathbf z^\top \mathbf B_k \mathbf z,
 \]
@@ -578,8 +419,7 @@ and
 \bigr)
 \mathbf U_D.
 \]
-Thus the surrogate is fully determined by the compressed coefficients $(a_k,\mathbf c_k,\mathbf B_k)$.
-Their one-time assembly cost is
+Assembling these coefficients requires one additional setup step with cost
 \begin{equation}
 \label{eq:proxy-setup-cost}
 \mathcal O\!\left(
@@ -594,7 +434,7 @@ ND^2
 \end{equation}
 
 \paragraph{Quadratic Monte Carlo.}
-Replacing the true increment in \eqref{eq:direct-subspace-mc} by its quadratic surrogate gives
+Replacing the true increment in \eqref{eq:direct-subspace-mc} by the quadratic surrogate yields
 \begin{equation}
 \label{eq:quad-subspace-mc}
 \widehat{\Delta}_{2,\mathrm{quadMC}}^{(D)}(k+1)
@@ -606,13 +446,10 @@ a_k + \mathbf c_k^\top \mathbf z_s + \frac12 \mathbf z_s^\top \mathbf B_k \mathb
 \qquad
 \mathbf z_s \sim \mathcal N(\mathbf 0,\sigma^2\mathbf I_D).
 \end{equation}
-After the setup cost \eqref{eq:proxy-setup-cost}, this estimator costs
-\[
-\mathcal O(SD^2).
-\]
+After the coefficient setup in \eqref{eq:proxy-setup-cost}, its evaluation cost is $\mathcal O(SD^2)$.
 
 \paragraph{Gaussian-moment estimator.}
-Because the quadratic surrogate is a polynomial in $\mathbf z$ and the probing law is Gaussian, its expectation can be evaluated in closed form:
+Because the surrogate is quadratic in $\mathbf z$ and the probe is Gaussian, its expectation can be evaluated in closed form:
 \begin{equation}
 \label{eq:quad-closed-form}
 \widehat{\Delta}_{2,\mathrm{GM}}^{(D)}(k+1)
@@ -624,7 +461,7 @@ a_k + \mathbf c_k^\top \mathbf z + \frac12 \mathbf z^\top \mathbf B_k \mathbf z
 \right)^2
 \right].
 \end{equation}
-Using the Gaussian moment identities from the proof of Theorem~\ref{thm:subspace-rate} yields
+Using Gaussian moment identities yields
 \begin{equation}
 \label{eq:quad-closed-form-expanded}
 \widehat{\Delta}_{2,\mathrm{GM}}^{(D)}(k+1)
@@ -642,89 +479,48 @@ a_k \sigma^2 \operatorname{Tr}(\mathbf B_k)
 \operatorname{Tr}(\mathbf B_k)^2
 \right).
 \end{equation}
-After setup, evaluating this estimator costs
-\[
-\mathcal O(D^2).
-\]
+After setup, this estimator costs $\mathcal O(D^2)$.
 
-\paragraph{Full-space baseline.}
-For comparison, the full-space mean-squared criterion $\Delta_2$ can be estimated by
-\begin{equation}
-\label{eq:fullspace-mc}
-\widehat{\Delta}_{2,\mathrm{full}}(k+1)
-=
-\frac{1}{S}\sum_{s=1}^S
-\Bigl(
-\mathcal L_{k+1}(\mathbf w_k^*+\boldsymbol{\xi}_s)
--
-\mathcal L_k(\mathbf w_k^*+\boldsymbol{\xi}_s)
-\Bigr)^2,
-\qquad
-\boldsymbol{\xi}_s \sim \mathcal N(\mathbf 0,\sigma^2\mathbf I_N).
-\end{equation}
-Its cost is
-\[
-\mathcal O\!\Bigl(
-S\bigl(
-N + C_{\mathrm{fwd}}(k)+C_{\mathrm{fwd}}(k+1)
-\bigr)
-\Bigr),
-\]
-again typically dominated by the two forward evaluations per sample.
-
-\paragraph{Summary of trade-offs.}
-Table~\ref{tab:estimator-summary} summarizes the estimators considered in this section.
-Direct subspace Monte Carlo estimates the true criterion and is therefore the most faithful estimator of $\Delta_2^{(D)}$.
-Quadratic Monte Carlo and the Gaussian-moment estimator are cheaper after setup, but they target only the quadratic surrogate rather than the original criterion.
-Their comparison in Section~\ref{sec:experiments} therefore tests not only computational trade-offs, but also the fidelity of the local quadratic model itself.
+\paragraph{Summary.}
+The three estimators differ only in where they sit on the fidelity--efficiency spectrum.
+Direct subspace Monte Carlo targets the true criterion and is therefore the reference estimator for $\Delta_2^{(D)}$.
+Quadratic Monte Carlo and the Gaussian-moment estimator are much cheaper after setup, but they target only the local quadratic surrogate.
+Their empirical comparison therefore tests two things at once: computational savings and the practical validity of the quadratic approximation.
 
 \begin{table}[t]
-\caption{Summary of estimators for local landscape stabilization criteria}
+\caption{Subspace-based estimators for $\Delta_2^{(D)}$. All methods share the one-time subspace construction cost $\mathcal O(T_{\mathrm{eig}}\,D\,C_{\mathrm{HVP}}(k))$. The most efficient one is Gaussian-moment (GM) estimator.}
 \label{tab:estimator-summary}
 \begin{center}
 \small
-\begin{tabular}{p{3.0cm} p{2.5cm} p{2.0cm} p{3.0cm}}
+\begin{tabular}{p{1.8cm} p{2.4cm} p{2.1cm} p{5.0cm}}
 \toprule
-\multicolumn{1}{c}{\bf Estimator} &
-\multicolumn{1}{c}{\bf Target quantity} &
-\multicolumn{1}{c}{\bf Additional quantities} &
-\multicolumn{1}{c}{\bf Cost after subspace construction}
-\\
+\textbf{Estimator} & \textbf{Target} & \textbf{One-time setup} & \textbf{Evaluation cost} \\
 \midrule
-Full-space Monte Carlo baseline
-&
-true $\Delta_2$
-&
-none
-&
-$\mathcal O\!\left(S\bigl(N + C_{\mathrm{fwd}}(k)+C_{\mathrm{fwd}}(k+1)\bigr)\right)$
-\\[0.5em]
-
-Direct subspace Monte Carlo
+Direct MC
 &
 true $\Delta_2^{(D)}$
 &
-$\mathbf U_D$
+none
 &
 $\mathcal O\!\left(S\bigl(ND + C_{\mathrm{fwd}}(k)+C_{\mathrm{fwd}}(k+1)\bigr)\right)$
-\\[0.5em]
+\\[0.45em]
 
-Quadratic Monte Carlo
+Quadratic MC
 &
-quadratic surrogate of $\Delta_2^{(D)}$
+quadratic surrogate
 &
-$a_k,\mathbf c_k,\mathbf B_k$
+Eq.~\eqref{eq:proxy-setup-cost}
 &
-setup cost $+\ \mathcal O(SD^2)$
-\\[0.5em]
+$\mathcal O(SD^2)$
+\\[0.45em]
 
-Gaussian-moment estimator
+GM
 &
-quadratic surrogate of $\Delta_2^{(D)}$
+quadratic surrogate
 &
-$a_k,\mathbf c_k,\mathbf B_k$
+Eq.~\eqref{eq:proxy-setup-cost}
 &
-setup cost $+\ \mathcal O(D^2)$
+$\mathcal O(D^2)$
 \\
 \bottomrule
 \end{tabular}
@@ -733,104 +529,119 @@ setup cost $+\ \mathcal O(D^2)$
 
 \section{Experiments}\label{sec:experiments}
 
+We evaluate four questions: how the proposed criteria decay with effective sample size, when the subspace criterion preserves the full-space mean-squared signal, for which perturbation scales the quadratic proxy is accurate, and how the three estimators trade fidelity against efficiency.
+
 \paragraph{Setup.}
-All experiments use the nanochat depth-6 model (tag~\texttt{d6}) evaluated at training step~3500.
-Nanochat is a decoder-only transformer with rotary position embeddings, grouped-query attention, $\mathrm{ReLU}^2$ activations, and RMSNorm without learnable parameters.
-We use this architecture because it is small enough to make repeated full-model Hessian--vector products (HVPs) computationally tractable in float32 precision, which is required for numerically stable second-order computations; autocast is disabled and the SDPA math kernel is used throughout.
-This makes it a controlled testbed for studying the second-order geometry of a realistic transformer loss landscape without approximations to the Hessian computation itself.
-Unless stated otherwise, we use $k=8$ sequences to define $\mathcal{L}_k$ and $\mathcal{L}_{k+1}$, and construct the top-$D$ Hessian subspace via deflated power iteration at $\mathbf{w}_k^*$.
+All experiments use the nanochat depth-6 model (tag~\texttt{d6}) evaluated at training step~3500. Nanochat is a decoder-only transformer with rotary position embeddings, grouped-query attention, $\mathrm{ReLU}$ activations, and RMSNorm without learnable parameters. We use this model because it is small enough to make repeated full-model Hessian--vector products tractable in float32 precision while still retaining nontrivial second-order structure. Autocast is disabled throughout, and we use the SDPA math kernel for numerical stability. Unless stated otherwise, we define $\mathcal L_k$ and $\mathcal L_{k+1}$ from $k=8$ sequences and construct the principal curvature subspace at $\mathbf w_k^*$ by deflated power iteration.
 
-\paragraph{Quadratic proxy validity (verifying the model of Section~\ref{sec:theory}).}
-All theoretical results in Section~\ref{sec:theory} are derived under the local quadratic model \eqref{eq:taylor-quadratic}.
-Before using any proxy-based estimator, we therefore identify the perturbation scales $\sigma$ at which this model is empirically reliable.
-For a fixed checkpoint $\mathbf{w}_k^*$, we draw isotropic Gaussian perturbations $\boldsymbol{\delta}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_N)$ and compare the true increment $\mathcal{L}_k(\mathbf{w}_k^*+\boldsymbol{\delta})-\mathcal{L}_k(\mathbf{w}_k^*)$ to its second-order Taylor approximation $\mathbf{g}^{(k)\top}\boldsymbol{\delta}+\frac{1}{2}\boldsymbol{\delta}^\top\mathbf{H}^{(k)}\boldsymbol{\delta}$.
-The mean relative error, averaged over multiple random seeds, is plotted in Fig.~\ref{fig:exp-1} over $\sigma\in[10^{-7},10^{-1}]$.
-The approximation error is never exactly zero due to higher-order contributions, but is reliably small for $\sigma\le10^{-3}$.
-All proxy-based estimators are therefore restricted to this regime in subsequent experiments.
+\paragraph{Criterion decay under sample growth.}
+We first test whether the criteria from Sections~\ref{sec:method}--\ref{sec:theory} exhibit the predicted stabilization trend as the effective sample size grows. To do so, we evaluate the pointwise criterion $\Delta_1$, the isotropic mean-squared criterion $\Delta_2$, and the curvature-aware subspace criterion $\Delta_2^{(D)}$ across a range of sample sizes $k$.
 
-\begin{figure}[t]
+\begin{wrapfigure}{r}{0.50\columnwidth}
+    \vspace{-2.4\baselineskip}
     \centering
-    \includegraphics[width=0.7\linewidth]{quadratic_sigma_loggrid_1e7_1e1_plot_abs.pdf}
-    \caption{Relative error of the quadratic Taylor approximation vs.\ perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6} model, step~3500). The quadratic model is reliable for $\sigma\le10^{-3}$; this regime defines the valid operating range for proxy-based estimators.}
+    \includegraphics[width=\linewidth]{delta_k_curriculum_d6_8seeds_merged_paper_criteria_linear_x.pdf}
+    \caption{\textbf{Decay of stabilization criteria with sample size.} Comparison of $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ as functions of $k$.}
+    \label{fig:exp-k-decay}
+    \vspace{-2.2\baselineskip}
+\end{wrapfigure}
+
+Figure~\ref{fig:exp-k-decay} shows that all criteria decrease with $k$, but at different rates. The pointwise criterion decays more slowly, whereas the mean-squared criteria are substantially smaller and follow the steeper trend suggested by the quadratic scaling argument. The subspace criteria remain close in scale to the full-space mean-squared criterion while restricting the probe to a much smaller set of directions.
+
+\paragraph{Subspace versus full-space criterion.}
+We next test whether the curvature-aligned subspace criterion preserves the full-space mean-squared signal. For several values of $D$ and $\sigma$, we track the ratio $\Delta_2^{(D)}/\Delta_2$ as a function of $k$.
+
+\begin{wrapfigure}{l}{0.50\columnwidth}
+    \vspace{-1.4\baselineskip}
+    \centering
+    \includegraphics[width=\linewidth]{delta_k_curriculum_d6_8seeds_gm_vs_full_ratio.pdf}
+    \caption{\textbf{Subspace criterion relative to the full-space criterion.} Ratio $\Delta_2^{(D)}/\Delta_2$ across sample size $k$, for several subspace dimensions $D$ and perturbation scales $\sigma$.}
+    \label{fig:exp-subspace-compare}
+    \vspace{-2.0\baselineskip}
+\end{wrapfigure}
+
+Figure~\ref{fig:exp-subspace-compare} reveals a clear regime split. For $\sigma=10^{-4}$ and $\sigma=10^{-3}$, the ratio stays close to $1$ across the full range of $k$, indicating that curvature-aligned probing preserves essentially the same stabilization signal as the full-space criterion. For $\sigma=10^{-2}$, the ratio departs strongly from $1$, becomes much more variable, and depends clearly on subspace dimension, with larger $D$ producing systematically larger values. This behavior is consistent with leaving the local regime in which subspace compression remains faithful to the full-space observable.
+
+\paragraph{Quadratic proxy validity.}
+The theory and the proxy estimators of Section~\ref{sec:algo} rely on the local quadratic model in Eqs.~\eqref{eq:taylor-quadratic}--\eqref{eq:loss-diff-minimum}. Before using these estimators, we therefore identify the perturbation scales for which the approximation is accurate. For a fixed checkpoint $\mathbf w_k^*$, we draw isotropic Gaussian perturbations $\boldsymbol{\delta}\sim\mathcal{N}(\mathbf{0},\sigma^2\mathbf{I}_N)$ and compare the true local loss increment $\mathcal{L}_k(\mathbf{w}_k^*+\boldsymbol{\delta})-\mathcal{L}_k(\mathbf{w}_k^*)$ to its second-order Taylor approximation $\mathbf{g}^{(k)\top}\boldsymbol{\delta}+\frac{1}{2}\boldsymbol{\delta}^\top\mathbf{H}^{(k)}\boldsymbol{\delta}$.
+
+\begin{wrapfigure}{r}{0.5\columnwidth}
+    \vspace{-1.4\baselineskip}
+    \centering
+    \includegraphics[width=\linewidth]{quadratic_sigma_loggrid_1e7_1e1_plot_abs.pdf}
+    \caption{Relative error of the quadratic Taylor approximation versus perturbation scale $\sigma$ (mean and standard deviation across seeds, nanochat \texttt{d6}, step~3500).}
     \label{fig:exp-1}
-\end{figure}
+    \vspace{-2.0\baselineskip}
+\end{wrapfigure}
 
-\paragraph{Estimator comparison (verifying cost analysis of Section~\ref{sec:algo}).}
-Table~\ref{tab:exp-2} reports wall-clock times (seconds; mean $\pm$ sample std over five seeds) for the three estimators of Section~\ref{sec:algo} on the nanochat \texttt{d6} model, decomposed into three pipeline stages.
-Stage~I constructs the principal curvature subspace by computing the top-$D$ eigenvectors of $\mathbf{H}^{(k)}(\mathbf{w}_k^*)$ via HVP-based power iteration; this stage is shared by all three estimators and dominates the total wall time.
-Stage~II assembles the compressed proxy coefficients $(a_k, \mathbf{c}_k, \mathbf{B}_k)$ via one backward pass and $2D$ Hessian--vector products; it is required only by the two proxy estimators (marked \textemdash{} for Direct~MC).
-Stage~III is the criterion evaluation: MC sampling for Direct~MC and Quadratic~MC, or the $\mathcal{O}(D^2)$ closed-form Gaussian-moment identity.
+Figure~\ref{fig:exp-1} shows a clear local regime: the approximation error remains low and nearly flat up to about $\sigma\approx10^{-3}$, and then rises sharply for larger perturbations. We therefore restrict the proxy-based estimators to $\sigma\le10^{-3}$ in the remaining experiments.
 
-After the shared Stage~I, the Gaussian-moment (GM) estimator is approximately $18{,}000\times$ faster than Direct MC in Stage~III ($0.12\,\mathrm{ms}$ vs.\ $2.20\,\mathrm{s}$), making it the most efficient option once the subspace has been constructed.
+\paragraph{Estimator fidelity and computational trade-offs.}
+We finally compare the three estimators from Section~\ref{sec:algo}: direct subspace Monte Carlo, quadratic Monte Carlo, and the Gaussian-moment (GM) estimator. Direct~MC targets the true criterion $\Delta_2^{(D)}$, whereas Quadratic~MC and GM target its local quadratic surrogate.
+
+\begin{wrapfigure}{l}{0.4\columnwidth}
+    \vspace{-0.6\baselineskip}
+    \centering
+    \includegraphics[width=\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_scurve.pdf}
+    \caption{Convergence of Direct~MC and Quadratic~MC estimates of $\widehat{\Delta}_2^{(D)}$ to the Gaussian-moment closed form as the sample count $S$ increases, at $D=10$ and $\sigma=10^{-3}$.}
+    \label{fig:exp-3}
+    \vspace{-0.8\baselineskip}
+\end{wrapfigure}
+
+Figure~\ref{fig:exp-3} shows that both Monte Carlo estimators converge toward the GM value as $S$ increases. Figure~\ref{fig:exp-4} shows that the discrepancy between Direct~MC and GM stays small throughout the validated local regime, but grows at the largest tested perturbation scale.
 
 \begin{table}[t]
-\caption{Wall-clock times (seconds; mean $\pm$ sample std over five seeds) for three estimators of $\Delta_2^{(D)}$ on the nanochat \texttt{d6} model ($D=45$, step~3500). Stage~I: top-$D$ Hessian eigenvectors (shared). Stage~II: gradient and compressed Hessian assembly (proxy estimators only). Stage~III: criterion evaluation.}
+\caption{Wall-clock times (seconds; mean $\pm$ sample standard deviation over five seeds) for the three estimators of $\Delta_2^{(D)}$ on the nanochat \texttt{d6} model ($D=45$, step~3500). Stage~I: top-$D$ Hessian eigenvectors (shared). Stage~II: gradient and compressed Hessian assembly (proxy estimators only). Stage~III: criterion evaluation.}
 \label{tab:exp-2}
 \begin{center}
 \small
-\begin{tabular}{p{3.0cm} p{2.5cm} p{2.0cm} p{3.0cm}}
-    \toprule
-    \multicolumn{1}{c}{\bf Estimator} &
-    \multicolumn{1}{c}{\bf Stage I (s)} &
-    \multicolumn{1}{c}{\bf Stage II (s)} &
-    \multicolumn{1}{c}{\bf Stage III (s)}
-    \\
-    \midrule
-    Direct MC      & $17.53 \pm 0.53$ & \textemdash{} & $2.197 \pm 0.013$ \\
-    Quadratic MC   & $17.53 \pm 0.53$ & $1.777 \pm 0.014$ & $(3.68 \pm 0.05)\times10^{-3}$ \\
-    Gaussian moment & $17.53 \pm 0.53$ & $1.777 \pm 0.014$ & $(1.22 \pm 0.03)\times10^{-4}$ \\
-    \bottomrule
+\begin{tabular}{lccc}
+\toprule
+\textbf{Estimator} & \textbf{Stage I (s)} & \textbf{Stage II (s)} & \textbf{Stage III (s)} \\
+\midrule
+Direct MC        & $17.53 \pm 0.53$ & \textemdash{}       & $2.197 \pm 0.013$ \\
+Quadratic MC     & $17.53 \pm 0.53$ & $1.777 \pm 0.014$   & $(3.68 \pm 0.05)\times10^{-3}$ \\
+GM               & $17.53 \pm 0.53$ & $1.777 \pm 0.014$   & $(1.22 \pm 0.03)\times10^{-4}$ \\
+\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
 
-Fig.~\ref{fig:exp-3} shows Direct~MC and Quadratic~MC estimates of $\widehat{\Delta}_2^{(D)}$ as functions of the Monte Carlo sample count~$S$, at fixed $D=10$ and $\sigma=10^{-3}$, with the GM closed form as a horizontal reference.
-Both MC estimators converge to the GM value as $S$ increases, confirming that the GM estimator is the zero-variance limit of Quadratic~MC and validating the closed-form derivation of \eqref{eq:quad-closed-form-expanded}.
+Table~\ref{tab:exp-2} shows that the shared subspace-construction stage dominates the total runtime. Once that cost has been paid, GM is by far the cheapest estimator: its evaluation stage is about $18{,}000\times$ faster than Direct~MC. Taken together, these results suggest a simple practical picture: Direct~MC is the reference estimator for the true criterion, but in the validated local regime the GM proxy provides nearly the same signal at negligible additional cost.
 
-\begin{figure}[t]
+\begin{wrapfigure}{r}{0.6\columnwidth}
+    \vspace{-0.6\baselineskip}
     \centering
-    \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_scurve.pdf}
-    \caption{Convergence of Direct~MC (blue) and Quadratic~MC (orange) estimates of $\widehat{\Delta}_2^{(D)}$ to the Gaussian-moment closed form (dashed) as the sample count $S$ increases, at $D=10$, $\sigma=10^{-3}$ (nanochat \texttt{d6}, step~3500). Shaded bands show $\pm1$ standard error.}
-    \label{fig:exp-3}
-\end{figure}
-
-Fig.~\ref{fig:exp-4} shows the relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ as a heatmap over subspace dimension $D\in[1,100]$ and scale $\sigma\in[10^{-7},10^{-2}]$.
-Within the valid proxy regime ($\sigma\lesssim10^{-3}$), the relative error is small across all tested $D$, confirming that the GM estimator is an accurate and efficient surrogate for Direct~MC and that the rate bound of Theorem~\ref{thm:subspace-rate} is not sensitive to the choice of $D$ within this range.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.7\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_heatmap.pdf}
-    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D\in[1,100]$ and perturbation scale $\sigma\in[10^{-7},10^{-2}]$ (nanochat \texttt{d6}, step~3500, $S=24$ MC samples per cell). Within the valid proxy regime ($\sigma\le10^{-3}$), the relative error is small across all~$D$, showing that the GM estimator is robust to the choice of subspace dimension.}
+    \includegraphics[width=\linewidth]{delta2_robustness_d6_3500_D10sigma1e3_heatmap.pdf}
+    \caption{Relative error $|\widehat{\Delta}_{\mathrm{direct}}-\mathrm{GM}|/(|\widehat{\Delta}_{\mathrm{direct}}|+\varepsilon)$ over subspace dimension $D$ and perturbation scale $\sigma$.}
     \label{fig:exp-4}
-\end{figure}
+    \vspace{-1.4\baselineskip}
+\end{wrapfigure}
 
-\section{Discussion and limitations}
+\section{Limitations}
+\label{sec:limitations}
+
+Our analysis is inherently local. The main theoretical result is derived under a second-order approximation of the increment field near a trained solution $\mathbf w_k^*$, so its interpretation is restricted to perturbation regimes in which that approximation is accurate. Accordingly, the proxy estimators from Section~\ref{sec:algo} should be viewed as local surrogates rather than globally faithful approximations.
+
+The top-$D$ principal-curvature subspace is motivated by empirical anisotropy and supported by our local analysis, but we do not claim that it is universally optimal in all regimes. In particular, the appendix-level extremality result holds only in an idealized eigenspace-aligned quadratic setting. More general non-quadratic or rapidly changing regimes may favor different probing laws or adaptive subspaces.
+
+Our empirical study is also intentionally narrow. We focus on a small decoder-only transformer chosen to make repeated full-model second-order computations feasible in float32 precision. This controlled setting is useful for isolating the behavior of the proposed observable, but it does not establish that the same geometric effects or computational trade-offs will transfer unchanged to larger models, other architectures, or different training regimes.
+
+Finally, the method depends on Hessian--vector products and iterative eigensolvers. While these tools are scalable relative to explicit Hessian construction, they still impose a nontrivial computational overhead, and in our setting subspace construction is the dominant cost.
+
+\section{Discussion}
 \label{sec:discussion}
 
-The central contribution of this paper is a unified framework for local stabilization criteria together with a curvature-aware probing design for the loss increment field under sample growth.
-The theory establishes that $\Delta_2^{(D)}$ attains the same mean-squared $\mathcal O(k^{-2})$ convergence rate as the full-space criterion under a local quadratic model, with curvature dependence scaling through the subspace dimension $D$ rather than the ambient dimension $N$; it does not claim universal optimality of the top-curvature subspace beyond this local regime.
+Our main claim is conceptual as much as technical: local stabilization under sample growth depends not only on what functional of the increment field is aggregated, but also on how that field is probed. From this perspective, the proposed criterion is not merely a lower-dimensional variant of an existing mean-squared observable. Rather, it makes the probing law an explicit part of the definition and aligns that choice with the anisotropic local geometry of the empirical landscape.
 
-The main limitations are as follows.
-First, the analysis is local: all theoretical guarantees are derived under a quadratic approximation of the loss near $\mathbf w_k^*$, and do not carry over to the global landscape.
-Second, the quadratic proxy estimators are accurate only in an extremely local regime ($\sigma\lesssim10^{-3}$); outside this regime, direct subspace Monte Carlo is the more reliable estimator.
-Third, the experiments are conducted on a single nanochat decoder-only transformer, and it remains to be verified whether the valid proxy regime and the relative estimator performance transfer to other architectures and scales.
+Within the local quadratic regime, this geometric restriction does not incur a rate penalty: the proposed criterion preserves the canonical $\mathcal O(k^{-2})$ mean-squared decay while replacing ambient-dimension curvature dependence by dependence on the probing dimension $D$. Empirically, the results also suggest that curvature-aligned probing provides a more targeted stabilization signal than generic low-dimensional alternatives, while the Gaussian-moment proxy offers substantial computational savings once the subspace has been constructed.
 
-More broadly, the paper argues that stabilization criteria should be understood not only through what they aggregate, but also through how they probe local landscape change---the choice of probing distribution is itself part of the scientific question.
-Natural next steps include developing richer local surrogates beyond the quadratic approximation, exploring non-Gaussian and data-dependent probing distributions within the unified framework, and evaluating the criterion across larger and more diverse models.
+More broadly, we view curvature-aligned probing as one instance of a larger design space of geometry-aware local observables. If stabilization is treated as an observational problem, then other structured probing laws may also be useful for understanding how empirical landscapes deform as training data grow.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced a unified framework for local loss-landscape stabilization under sample growth and proposed a curvature-aware mean-squared criterion $\Delta_2^{(D)}$ that probes the loss increment field in the top-$D$ eigenspace of the empirical Hessian near a trained solution.
-
-Under a local quadratic model, we proved that $\Delta_2^{(D)}$ attains the same $\mathcal O(k^{-2})$ mean-squared convergence rate as the full-space criterion, with curvature dependence governed by $D$ rather than the ambient dimension $N$.
-We further derived a spectral closed form under a stable-eigenspace assumption, proved an extremality property of the top-$D$ eigenspace within the eigenspace-aligned family, and described three scalable estimators for both the true criterion and its quadratic surrogate.
-
-Empirically, the Gaussian-moment estimator faithfully tracks direct Monte Carlo across all tested subspace dimensions $D\in[1,100]$ within the valid quadratic regime ($\sigma\lesssim10^{-3}$), while being approximately $18{,}000\times$ faster in the evaluation stage after subspace construction.
-Outside this regime, proxy accuracy degrades rapidly, and direct subspace Monte Carlo is the reliable estimator of choice.
-
-Taken together, these results establish $\Delta_2^{(D)}$ as a well-defined, theoretically grounded, and computationally tractable curvature-aware observable of local landscape stabilization.
-We hope the unified framework and the explicit role of the probing distribution will serve as a foundation for future criteria that go beyond the quadratic regime, incorporate data-dependent probing, and connect landscape stabilization to downstream decisions such as sample size selection and data-efficient fine-tuning.
+We introduced a unified view of local loss-landscape stabilization and proposed a curvature-aligned subspace criterion based on the top-$D$ Hessian eigenspace near a trained solution. Under a local quadratic model, this criterion preserves the full-space mean-squared $\mathcal O(k^{-2})$ rate with dependence on the probing dimension $D$, and admits scalable estimators that are efficient in the valid local regime.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -848,6 +659,54 @@ We hope the unified framework and the explicit role of the probing distribution 
 \label{app:proofs}
 
 \allowdisplaybreaks
+
+\subsection{Spectral interpretation under stable principal directions}
+\label{app:spectral}
+
+The rate bound in Theorem~\ref{thm:subspace-rate} does not require any alignment between the eigenspaces of $\mathbf H^{(k)}(\mathbf w_k^*)$ and $\mathbf H^{(k+1)}(\mathbf w_k^*)$. For interpretation, it is useful to isolate a more structured regime in which the leading curvature directions remain stable across the one-sample increment.
+
+\begin{assumption}[Stable principal directions]
+\label{ass:stable-principal}
+The eigenvectors $\mathbf u_1,\dots,\mathbf u_D$ associated with the $D$ largest eigenvalues of $\mathbf H^{(k)}(\mathbf w_k^*)$ are also eigenvectors of $\mathbf H^{(k+1)}(\mathbf w_k^*)$:
+\[
+\mathbf H^{(k+1)}(\mathbf w_k^*)\,\mathbf u_i
+=
+\lambda_i^{(k+1)}\mathbf u_i,
+\qquad i=1,\dots,D.
+\]
+\end{assumption}
+
+Under Assumption~\ref{ass:stable-principal},
+\[
+\mathbf B_k
+=
+\operatorname{diag}\bigl(
+\lambda_1^{(k+1)}-\lambda_1^{(k)},
+\dots,
+\lambda_D^{(k+1)}-\lambda_D^{(k)}
+\bigr),
+\]
+so the compressed Hessian difference becomes diagonal in the principal basis.
+
+\begin{corollary}[Spectral closed form under vanishing value and linear terms]
+\label{cor:spectral}
+Suppose Assumption~\ref{ass:stable-principal} holds, $\tilde q(\mathbf z)=\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$, and $a_k=0$, $\mathbf c_k=\mathbf 0$. Then
+\begin{equation}
+\label{eq:spectral-closed-form}
+\Delta_2^{(D)}(k+1)
+=
+\frac{\sigma^4}{4}
+\left(
+2\sum_{i=1}^D (\lambda_i^{(k+1)}-\lambda_i^{(k)})^2
++
+\left(
+\sum_{i=1}^D (\lambda_i^{(k+1)}-\lambda_i^{(k)})
+\right)^2
+\right).
+\end{equation}
+\end{corollary}
+
+Corollary~\ref{cor:spectral} isolates the pure quadratic regime. The assumptions $a_k=0$ and $\mathbf c_k=\mathbf 0$ are idealizations, but they become increasingly natural when the value gap is small and $\mathbf w_k^*$ lies close to a minimizer of $\mathcal L_{k+1}$ as well. In that regime, the criterion becomes a direct function of the leading eigenvalue increments.
 
 \subsection{Lemma: Extremality of the top-curvature subspace}
 \label{app:extremal}
@@ -874,16 +733,23 @@ and the maximum over all index sets $I$ with $|I|=D$ is attained at $I^*=\{1,\do
 Equivalently, the top-$D$ eigenspace of $\mathbf H^{(k)}(\mathbf w_k^*)$ maximizes the pure quadratic stabilization signal within the eigenspace-aligned family.
 \end{lemma}
 
-\begin{proof}
 Under the simultaneous diagonalizability assumption, $\mathbf B_k = \operatorname{diag}(\delta_1,\dots,\delta_N)$ restricted to $\mathcal S_I$ gives $\mathbf B_{k,I}=\operatorname{diag}(\delta_i : i\in I)$.
 With $a_k=0$, $\mathbf c_k=\mathbf 0$, Lemma~\ref{lem:subspace-reduction} and the Gaussian moment identities of Theorem~\ref{thm:subspace-rate} yield \eqref{eq:extremal-criterion}.
-The function $f(I)=2\sum_{i\in I}\delta_i^2+(\sum_{i\in I}\delta_i)^2$ is maximized by choosing the $D$ largest $\delta_i$ values, i.e., $I^*=\{1,\dots,D\}$, since all terms are non-negative and $\delta_1\ge\cdots\ge\delta_N\ge 0$.
-\end{proof}
+The function
+\[
+f(I)=2\sum_{i\in I}\delta_i^2+\left(\sum_{i\in I}\delta_i\right)^2
+\]
+is maximized by choosing the $D$ largest $\delta_i$ values, i.e., $I^*=\{1,\dots,D\}$, since all terms are non-negative and $\delta_1\ge\cdots\ge\delta_N\ge 0$.
 
 \subsection{Proof of Lemma~\ref{lem:subspace-reduction}}
 
-Since the columns of $\mathbf U_D\in\mathbb R^{N\times D}$ are orthonormal, every point of $\mathbf w_k^*+\mathcal S_D$ has a unique representation $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, $\mathbf z\in\mathbb R^D$.
-Substituting into the local quadratic model \eqref{eq:loss-diff-minimum} and using $\mathbf g^{(k)}(\mathbf w_k^*)=\mathbf 0$:
+Since the columns of $\mathbf U_D\in\mathbb R^{N\times D}$ are orthonormal, every point of $\mathbf w_k^*+\mathcal S_D$ has a unique representation
+\[
+\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z,
+\qquad
+\mathbf z\in\mathbb R^D.
+\]
+Substituting into the local quadratic model \eqref{eq:loss-diff-minimum} and using $\mathbf g^{(k)}(\mathbf w_k^*)=\mathbf 0$ gives
 \begin{align*}
 \mathcal L_{k+1}(\mathbf w)-\mathcal L_k(\mathbf w)
 &=
@@ -892,11 +758,11 @@ a_k
 \mathbf g^{(k+1)}(\mathbf w_k^*)^\top \mathbf U_D\mathbf z
 +
 \frac12(\mathbf U_D\mathbf z)^\top \mathbf A_k (\mathbf U_D\mathbf z)
-=
+\\
+&=
 a_k + \mathbf c_k^\top \mathbf z + \frac12 \mathbf z^\top \mathbf B_k \mathbf z.
 \end{align*}
-Under the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the density $q$ supported on $\mathbf w_k^*+\mathcal S_D$ induces a density $\tilde q$ on $\mathbb R^D$.
-Integrating yields \eqref{eq:subspace-reduction-integral}.
+Under the parameterization $\mathbf w=\mathbf w_k^*+\mathbf U_D\mathbf z$, the density $q$ supported on $\mathbf w_k^*+\mathcal S_D$ induces a density $\tilde q$ on $\mathbb R^D$. Integrating yields \eqref{eq:subspace-reduction-integral}.
 
 \subsection{Proof of Theorem~\ref{thm:subspace-rate}}
 
@@ -961,8 +827,7 @@ Moreover,
 \le
 M_\ell,
 \]
-and also $|\ell_{k+1}(\mathbf w_k^*)|\le M_\ell$.
-Hence
+and also $|\ell_{k+1}(\mathbf w_k^*)|\le M_\ell$. Hence
 \begin{equation}
 \label{eq:app-ak-sq-new}
 |a_k|\le \frac{2M_\ell}{k+1},
@@ -1002,8 +867,7 @@ For $\mathbf z\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$,
 \end{equation}
 
 \paragraph{Quadratic term.}
-The matrix $\mathbf B_k$ is symmetric.
-For $\mathbf z\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$,
+The matrix $\mathbf B_k$ is symmetric. For $\mathbf z\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_D)$,
 \begin{equation}
 \label{eq:app-quad-moment-new}
 \mathbb E\bigl[(\mathbf z^\top\mathbf B_k\mathbf z)^2\bigr]
@@ -1218,8 +1082,7 @@ F(I)
 +
 \left(\sum_{i\in I}\delta_i\right)^2.
 \]
-Since $\delta_1\ge\delta_2\ge\cdots\ge\delta_N\ge0$, both terms in $F(I)$ are monotone with respect to replacing a smaller selected $\delta_j$ by a larger unselected $\delta_i$.
-More explicitly, suppose $i\notin I$, $j\in I$, and $\delta_i\ge \delta_j$, and define
+Since $\delta_1\ge\delta_2\ge\cdots\ge\delta_N\ge0$, both terms in $F(I)$ are monotone with respect to replacing a smaller selected $\delta_j$ by a larger unselected $\delta_i$. More explicitly, suppose $i\notin I$, $j\in I$, and $\delta_i\ge \delta_j$, and define
 \[
 I'=(I\setminus\{j\})\cup\{i\}.
 \]
@@ -1243,68 +1106,54 @@ Hence
 \[
 F(I')\ge F(I).
 \]
-By repeatedly exchanging smaller selected indices for larger unselected ones, one reaches the set $I^*=\{1,\dots,D\}$ without decreasing $F$.
-Therefore $F(I)$, and hence $\Delta_{2,I}^{\mathrm{quad}}(k+1)$, is maximized at $I^*=\{1,\dots,D\}$.
-This proves the lemma.
+By repeatedly exchanging smaller selected indices for larger unselected ones, one reaches the set $I^*=\{1,\dots,D\}$ without decreasing $F$. Therefore $F(I)$, and hence $\Delta_{2,I}^{\mathrm{quad}}(k+1)$, is maximized at $I^*=\{1,\dots,D\}$. This proves the lemma.
 
 \section{Additional experimental details}
 \label{app:exp}
 
-\paragraph{Experimental settings.}
-Our experiments use a run matrix rather than a single configuration.
-The reference setting is a nanoGPT-style decoder-only transformer with $4$ layers, $4$ attention heads, embedding width $128$, and block length $64$, trained on Tiny Shakespeare with AdamW ($\beta_1=0.9$, $\beta_2=0.95$, weight decay $0.1$), learning rate $3\times 10^{-4}$, batch size $32$, and a fixed number of $20$ training epochs for each value of $k$.
-The stronger setting follows the same overall protocol but uses a wider model, a longer context length, and the WikiText-2 training split as the text corpus.
+\paragraph{Model and numerical setup.}
+All main-text experiments use the \texttt{nanochat} depth-6 model (tag \texttt{d6}) evaluated at training step~3500. The model is a decoder-only transformer with rotary position embeddings, grouped-query attention, $\mathrm{ReLU}$ activations, and RMSNorm without learnable parameters. We use this setup because it is small enough to make repeated full-model Hessian--vector products feasible in float32 precision while still retaining nontrivial transformer loss geometry. Autocast is disabled throughout, and the SDPA math kernel is used for numerical stability.
 
-\paragraph{Nested subsets and losses.}
-For each sample size $k$, we fix a random ordering of the training pool and use the first $k$ examples, yielding nested subsets across $k$.
-The empirical risk $\mathcal L_k$ is the mean next-token cross-entropy over all tokens in the corresponding subset.
-All evaluations of $\mathcal L_k$ and $\mathcal L_{k+1}$ use the exact nested subsets associated with the given value of $k$.
-
-\paragraph{Criteria and perturbation settings.}
-For $\Delta_1$, we use $50$ random directions with perturbation scale $\varepsilon=0.02$.
-For $\Delta_2$ and $\Delta_2^{(D)}$, the default setting uses $\sigma=0.02$ and $100$ Monte Carlo samples, together with the additional $\sigma$-sweeps reported in Section~\ref{sec:experiments}.
-The subspace dimension is varied across the values reported in the main text.
-
-\paragraph{Hessian-based quantities.}
-Top-$D$ Hessian eigendirections are computed using Hessian--vector products and iterative eigensolvers, as described in Section~\ref{sec:algo}.
-Unless stated otherwise, the principal curvature subspace is recomputed separately for each $k$.
-When Hessian-based quantities are estimated on trimmed subsets for efficiency, this affects only the Hessian-based computations and is kept separate from the direct evaluation of the landscape criteria.
-
-\paragraph{Seeds and sample-size grids.}
-The reference Tiny Shakespeare experiments use three random seeds and the sample-size grid
+\paragraph{Losses, checkpoints, and local quantities.}
+Unless stated otherwise, the local criteria are evaluated at a checkpoint denoted by $\mathbf w_k^*$. The empirical risks $\mathcal L_k$ and $\mathcal L_{k+1}$ are formed from the corresponding nested sequence subsets used in the experiment under consideration. The local quadratic quantities in Sections~\ref{sec:theory} and~\ref{sec:algo} are computed at the same checkpoint:
 \[
-k \in \{100,150,200,300,400,500,700,1000,1500,2000,3000,4000,5000\}.
+a_k = \mathcal L_{k+1}(\mathbf w_k^*)-\mathcal L_k(\mathbf w_k^*),\qquad
+\mathbf c_k = \mathbf U_D^\top \mathbf g^{(k+1)}(\mathbf w_k^*),\qquad
+\mathbf B_k=\mathbf U_D^\top\bigl(\mathbf H^{(k+1)}-\mathbf H^{(k)}\bigr)\mathbf U_D.
 \]
-The stronger WikiText-2 setting uses the grid reported in Section~\ref{sec:experiments}.
+
+\paragraph{Subspace construction.}
+Top-$D$ Hessian eigendirections are computed from $\mathbf H^{(k)}(\mathbf w_k^*)$ using Hessian--vector products and iterative eigensolvers, as described in Section~\ref{sec:algo}. Unless stated otherwise, the principal curvature subspace is recomputed for each evaluated checkpoint. When alternative subspaces are compared in the main text, the bottom-$D$ subspace is defined by the eigenvectors associated with the smallest eigenvalues of the same Hessian, and the random subspace is sampled as a random orthonormal basis of the same dimension.
+
+\paragraph{Criterion estimation.}
+For $\Delta_1$, we evaluate the one-point increment directly at $\mathbf w_k^*$. For $\Delta_2$ and $\Delta_2^{(D)}$, Monte Carlo estimates use Gaussian perturbations with the perturbation scales and sample counts reported in the corresponding figure captions. Direct subspace Monte Carlo samples perturbations in the principal curvature subspace, while Quadratic~MC and the Gaussian-moment estimator use the compressed surrogate coefficients $(a_k,\mathbf c_k,\mathbf B_k)$. Unless stated otherwise, proxy-based estimators are used only in the perturbation regime where the quadratic approximation is empirically validated.
+
+\paragraph{Quadratic proxy validation.}
+For the proxy-validity experiment in the main text, we draw isotropic Gaussian perturbations
+\[
+\boldsymbol{\delta}\sim\mathcal N(\mathbf 0,\sigma^2\mathbf I_N)
+\]
+and compare the true local loss increment
+\[
+\mathcal L_k(\mathbf w_k^*+\boldsymbol{\delta})-\mathcal L_k(\mathbf w_k^*)
+\]
+to its second-order Taylor approximation
+\[
+\mathbf g^{(k)\top}\boldsymbol{\delta}+\frac12\boldsymbol{\delta}^\top \mathbf H^{(k)}\boldsymbol{\delta}.
+\]
+The reported relative errors are averaged over random seeds and perturbation samples.
+
+\paragraph{Decay under sample growth.}
+For the sample-growth experiment in the main text, we evaluate $\Delta_1$, $\Delta_2$, and $\Delta_2^{(D)}$ across a grid of effective sample sizes $k$. The corresponding curves are intended to test the predicted decay of the stabilization criteria and to compare pointwise, isotropic, and curvature-aligned probes on the same training trajectory. When the experiment uses multiple random seeds, the plotted values are averaged across seeds and displayed with the uncertainty convention specified in the figure caption.
+
+\paragraph{Subspace-comparison experiment.}
+For the top-vs-bottom-vs-random comparison, all probes use the same dimension $D$ and perturbation scale $\sigma$. The only difference is the choice of probing subspace. This experiment is meant to isolate the effect of curvature alignment from the effect of dimensionality reduction alone.
+
+\paragraph{Runtime measurements.}
+Wall-clock times in Table~\ref{tab:exp-2} are measured separately for three stages: subspace construction, surrogate-coefficient assembly, and criterion evaluation. The first stage is shared by all estimators. Reported values are averaged over five random seeds and shown as mean $\pm$ sample standard deviation.
 
 \paragraph{Recorded outputs.}
-For each run, we record the main stabilization curves, $\sigma$-sweeps, comparisons across subspace families, eigenspace-overlap statistics, and estimator-comparison diagnostics.
-All plots and summary statistics in the main text are generated from these recorded outputs.
-
-\begin{table}[t]
-  \centering
-  \small
-  \begin{tabular}{ll}
-    \hline
-    Setting & Values (reference range) \\
-    \hline
-    Architecture & nanoGPT-style decoder-only transformer \\
-    Layers / heads / width & $4$ / $4$ / $128$ \\
-    Block length & $64$ \\
-    Optimizer & AdamW, $\beta_1=0.9$, $\beta_2=0.95$ \\
-    Learning rate & $3\times 10^{-4}$ \\
-    Weight decay & $0.1$ \\
-    Batch size & $32$ \\
-    Training budget & fixed $20$ epochs per $k$ \\
-    MC samples $S$ & $100$ for $\Delta_2$ and $\Delta_2^{(D)}$ \\
-    Default perturbation scale & $\sigma=0.02$ \\
-    Hessian eigensolver budget & $30$ power iterations \\
-    Random seeds & $3$ \\
-    \hline
-  \end{tabular}
-  \caption{Reference experimental defaults for the Tiny Shakespeare setting.}
-  \label{tab:exp-hparams}
-\end{table}
+For each run, we record the estimated criteria, proxy-validation diagnostics, subspace-comparison results, and estimator timing statistics needed to generate the figures and tables in the main text.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
