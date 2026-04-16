@@ -1,25 +1,23 @@
-# Curvature-Subspace Criteria for Local Loss-Landscape Stabilization
+# Curvature-Aligned Probing for Local Loss-Landscape Stabilization
 
-[![paper](https://img.shields.io/badge/paper-preprint-red.svg)](paper/main.pdf)
-[![nanochat](https://img.shields.io/badge/nanochat-code-blue.svg)](code/README.md)
-[![landscape code](https://img.shields.io/badge/landscape-code--old-green.svg)](code-old/README.md)
+[![paper](https://img.shields.io/badge/paper-preprint-red.svg)](paper/neurips_2026.pdf)
+[![code](https://img.shields.io/badge/code-repo-blue.svg)](code/README.md)
 
-This is the official companion repository for the paper **Curvature-Subspace Criteria for Local Loss-Landscape Stabilization** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
+This is the official companion repository for the paper **Curvature-Aligned Probing for Local Loss-Landscape Stabilization** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
 
 <div align="center">
-    <img alt="Subspace mean-squared criterion (schematic)" width="520" src="paper/figures-old/criterion_squared_subspace.png">
+    <img alt="Subspace mean-squared criterion (schematic)" width="520" src="paper-tmlr/figures-old/criterion_squared_subspace.png">
 </div>
 
 <br>
 
-> **Abstract:** Deep neural loss landscapes are highly anisotropic: most local curvature is concentrated in a small number of directions. We study how such landscapes stabilize as the training set grows one sample at a time. Previous work introduced pointwise and full-space mean-squared criteria for local landscape increments, but these criteria do not exploit local curvature structure and may average the signal over many weakly informative directions. We introduce a curvature-aware subspace criterion that probes local landscape change in the leading eigenspace of the empirical Hessian near a trained solution. Under a local quadratic model, we show that this criterion preserves the same mean-squared convergence order as the full-space criterion, while depending on the subspace dimension rather than the ambient parameter dimension. We also derive a spectral interpretation under an additional stable-eigenspace assumption and describe scalable estimators based on Hessian--vector products and subspace Monte Carlo. Experiments on nanoGPT-style transformers confirm that the subspace criterion robustly preserves the mean-squared decay across different subspace dimensions and perturbation scales. However, at the tested perturbation scales, the scalar value gap dominates the criterion, making different subspace choices empirically indistinguishable, and the quadratic proxy estimators overestimate the direct criterion by several orders of magnitude. These results support the proposed criterion as a well-behaved curvature-aware observable while highlighting concrete limitations of the current observational design.
+> **Abstract:** Local loss-landscape stabilization under sample growth is typically measured either pointwise or through isotropic averaging in the full parameter space. Despite practical value, both choices probe directions that contribute little to the dominant local deformation of strongly anisotropic neural landscapes. We recast stabilization as an observational problem and introduce a unified family of criteria parameterized by an aggregation order and a probing distribution; within this family we propose a curvature-aligned criterion that probes the loss increment field in the top-D eigenspace of the empirical Hessian near a trained solution. Solely from a local quadratic model, we prove that criterion preserves the quadratic mean-squared rate of the full-space criterion while replacing ambient-dimension curvature dependence with dependence on the subspace dimension D; a corollary gives a closed-form spectral expression and a proposition identifies the top-D eigenspace as extremal within the eigenspace-aligned family. We also derive scalable estimators based on Hessian--vector products, subspace Monte Carlo, and a closed-form Gaussian-moment proxy. On a decoder-only transformer, a curvature-aligned probe occupying a tiny fraction of parameter space already reproduces the full-space mean-squared signal to within numerical noise throughout the validated local regime, and the closed-form estimator is orders of magnitude faster than direct Monte Carlo after subspace construction.
 
 ## Repository structure
 
 This repository is structured as follows:
 
-- **`code`** — [nanochat](https://github.com/karpathy/nanochat) (vendored copy without nested `.git`); see [`code/README.md`](code/README.md). Use `uv` as in upstream. Data and checkpoints default to **`code/.nanochat/`** (override with `NANOCHAT_BASE_DIR`); that directory is gitignored.
-- **`code-old`** — original paper experiments (nanoGPT-style LM, Δ metrics, plotting); see [`code-old/README.md`](code-old/README.md). Run scripts from the repo root with `python code-old/run_experiments.py`, etc.
+- **`code`** — [nanochat](https://github.com/karpathy/nanochat) (vendored copy without nested `.git`); see [`code/README.md`](code/README.md). Use `uv` as in upstream.
 - **`paper`** — preprint [`paper/main.pdf`](paper/main.pdf) and LaTeX sources (`main.tex`, `references.bib`, NeurIPS style).
 
 ## Citation
@@ -27,8 +25,8 @@ This repository is structured as follows:
 If you find our work helpful, please cite us.
 
 ```bibtex
-@misc{kiselev2026curvaturesubspace,
-    title={Curvature-Subspace Criteria for Local Loss-Landscape Stabilization},
+@misc{kiselev2026curvature,
+    title={Curvature-Aligned Probing for Local Loss-Landscape Stabilization},
     author={Kiselev, Nikita and Grabovoy, Andrey},
     year={2026},
     note={Manuscript. NeurIPS submission.}
