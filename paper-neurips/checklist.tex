@@ -7,7 +7,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and introduction state the main contributions (unified framework, subspace criterion, $\mathcal{O}(k^{-2})$ rate, scalable estimators) and acknowledge limitations (local quadratic model, value-gap dominance, nanochat-only experiments).
+    \item[] Justification: The abstract and introduction state the main contributions (unified family of stabilization criteria, curvature-aligned subspace criterion $\Delta_2^{(D)}$, $\mathcal{O}(k^{-2})$ rate preservation under geometric compression, scalable estimators with a closed-form Gaussian-moment proxy). Scope and limitations (local quadratic regime, single-architecture empirical study) are discussed explicitly in Section~\ref{sec:limitations}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -19,7 +19,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:discussion} explicitly discusses three limitations: (1) all guarantees hold only under a local quadratic model; (2) the value-gap term dominates at the tested scales, masking directional differences between subspace families; (3) proxy estimators are reliable only in an extremely local regime. Experimental scope (single architecture) is also acknowledged.
+    \item[] Justification: Section~\ref{sec:limitations} explicitly discusses (1) the local-quadratic scope of the theory, including the one-sided nature of Theorem~\ref{thm:subspace-rate} and the $D^2$ factor in its constant; (2) the idealized eigenspace-aligned regime under which Proposition~\ref{prop:extremal-topD} holds; (3) the narrow empirical scope (a single 107M-parameter decoder-only transformer); and (4) the HVP- and eigensolver-related computational overhead.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper. 
@@ -35,7 +35,7 @@
 \item {\bf Theory assumptions and proofs}
     \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All assumptions (per-example boundedness, local minimizer, optional stable-eigenspace assumption) are stated explicitly before each result. Full proofs of all lemmas, the main theorem, corollary, and extremality lemma appear in Appendix~\ref{app:proofs}.
+    \item[] Justification: All assumptions (uniform per-example boundedness at sequential minimizers in Assumption~\ref{ass:uniform-bounds}, and the optional stable-principal-directions condition in Assumption~\ref{ass:stable-principal}) are stated explicitly before each result. Full proofs of Lemma~\ref{lem:subspace-reduction}, Theorem~\ref{thm:subspace-rate}, Corollary~\ref{cor:spectral}, and the formal statement underlying Proposition~\ref{prop:extremal-topD} (Lemma~\ref{lemma:extremal-topD}) appear in Appendix~\ref{app:proofs}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include theoretical results. 
@@ -49,7 +49,7 @@
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:experiments} describes the model (nanochat \texttt{d6}, step~3500), all hyperparameters ($k=8$, $D$, $\sigma$ ranges, number of seeds and MC samples), and the three-stage pipeline. Algorithms are fully specified in Section~\ref{sec:algo}.
+    \item[] Justification: Section~\ref{sec:experiments} and Appendix~\ref{app:exp} describe the model (107M-parameter nanochat \texttt{d6}, step~3500), the precision and kernel settings, the sample-size $k$ grid, the ranges of $D$ and $\sigma$, the number of seeds and Monte Carlo samples, and the subspace-construction procedure. All estimators are fully specified in Section~\ref{sec:algo}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -68,8 +68,8 @@
 
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: Code is not publicly released at submission time. The paper provides sufficient algorithmic detail and experimental specification for independent reproduction.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Anonymized code for reproducing all figures and tables is available at \url{https://anonymous.4open.science/r/curvature-subspace-landscape} (placeholder; replace with final anonymized URL). The repository contains the experiment scripts, configuration files, and instructions for regenerating the results in Section~\ref{sec:experiments}. The nanochat \texttt{d6} checkpoint used in the experiments is publicly available.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -86,7 +86,7 @@
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The setup paragraph in Section~\ref{sec:experiments} specifies the model architecture, training step, $k$, $D$ and $\sigma$ ranges, number of seeds, MC sample counts, and the eigensolver tolerance and iteration counts used for subspace construction.
+    \item[] Justification: The setup paragraph in Section~\ref{sec:experiments} together with Appendix~\ref{app:exp} specifies the model architecture, training step, precision and kernel settings, the ranges of $k$, $D$, and $\sigma$, the number of random seeds, the Monte Carlo sample counts, and the subspace-construction procedure (deflated power iteration on Hessian--vector products).
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -97,7 +97,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Table~\ref{tab:exp-2} reports mean $\pm$ sample standard deviation (ddof=1) over five random seeds. Figures~\ref{fig:exp-1} and~\ref{fig:exp-3} show mean $\pm$ standard deviation and mean $\pm$ standard error respectively, with the source of variability (random MC draws / random seeds) stated in the captions.
+    \item[] Justification: Table~\ref{tab:exp-2} reports mean $\pm$ sample standard deviation (ddof$=1$) over five random seeds. Figure~\ref{fig:exp-1} shows mean and standard deviation across seeds of the Taylor-approximation relative error. Figures~\ref{fig:exp-k-decay} and~\ref{fig:exp-subspace-compare} are averaged across random seeds with the variability convention stated in the captions. The source of variability (random MC draws versus random seeds) is identified for each experiment in the text.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -216,7 +216,7 @@
     \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does \emph{not} impact the core methodology, scientific rigor, or originality of the research, declaration is not required.
     %this research?
     \item[] Answer: \answerNA{}
-    \item[] Justification: LLMs are the subject of study (as the model family on which experiments are run), not a tool in the research methodology. No LLM was used for core method development, proof generation, or experimental design.
+    \item[] Justification: LLMs are not a component of the core methodology. The only use of LLMs in the preparation of this work was for writing, editing, and formatting assistance, which per the NeurIPS policy does not require declaration.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the core method development in this research does not involve LLMs as any important, original, or non-standard components.
