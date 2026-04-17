@@ -1,6 +1,6 @@
 # Curvature-Aligned Probing for Local Loss-Landscape Stabilization
 
-[![paper](https://img.shields.io/badge/paper-arXiv-red.svg)](paper/arxiv_v1.pdf)
+[![paper](https://img.shields.io/badge/paper-arXiv-red.svg)](https://arxiv.org/abs/2604.14870)
 [![code](https://img.shields.io/badge/code-repo-blue.svg)](code/README.md)
 
 This is the official companion repository for the paper **Curvature-Aligned Probing for Local Loss-Landscape Stabilization** by [Nikita Kiselev](https://kisnikser.github.io/) and [Andrey Grabovoy](https://scholar.google.com/citations?user=ZtI9pgsAAAAJ&hl=en&oi=sra).
